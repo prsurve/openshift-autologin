@@ -1,3 +1,40 @@
+// ── Detect cluster role from name, URL, or explicit role field ──
+function detectRole(cluster) {
+  // If the imported file already has a role field (set by the download script), use it directly
+  const roleMap = {
+    "hub":         { key: "hub",         label: "Active Hub",   icon: "🟣", desc: "Active ACM Hub — manages all spoke clusters" },
+    "hub-passive": { key: "hub-passive", label: "Passive Hub",  icon: "🔵", desc: "Passive ACM Hub (Disaster Recovery standby)" },
+    "primary":     { key: "primary",     label: "Primary C1",   icon: "🟢", desc: "Primary managed cluster (C1)" },
+    "secondary":   { key: "secondary",   label: "Secondary C2", icon: "🟡", desc: "Secondary managed cluster (C2)" },
+    "unknown":     { key: "unknown",     label: "Cluster",      icon: "⚪", desc: "Role not detected" },
+  };
+  if (cluster.role && roleMap[cluster.role]) return roleMap[cluster.role];
+
+  const name = (cluster.name || "").toLowerCase();
+  const url  = (cluster.url  || "").toLowerCase();
+  const combined = name + " " + url;
+
+  // Hub / ACM patterns
+  if (/hub[_-]?1|hub[_-]?one|passive|hub_1/.test(combined))
+    return { key: "hub-passive", label: "Passive Hub", icon: "🔵", desc: "Passive ACM Hub (Disaster Recovery standby)" };
+
+  if (/hub/.test(combined))
+    return { key: "hub", label: "Active Hub", icon: "🟣", desc: "Active ACM Hub — manages all spoke clusters" };
+
+  // Managed cluster patterns
+  if (/c1|primary|vmware.?one|cluster.?1|spoke.?1/.test(combined))
+    return { key: "primary", label: "Primary C1", icon: "🟢", desc: "Primary managed cluster (C1)" };
+
+  if (/c2|secondary|vmware.?two|cluster.?2|spoke.?2/.test(combined))
+    return { key: "secondary", label: "Secondary C2", icon: "🟡", desc: "Secondary managed cluster (C2)" };
+
+  // Fallback: try to guess from URL segment count / patterns
+  if (/spoke|managed|worker/.test(combined))
+    return { key: "primary", label: "Spoke", icon: "🟢", desc: "Managed spoke cluster" };
+
+  return { key: "unknown", label: "Cluster", icon: "⚪", desc: "Role not detected — check cluster name or URL" };
+}
+
 // ── Tab switching ─────────────────────────────────────
 document.querySelectorAll(".tab").forEach(tab => {
   tab.addEventListener("click", () => {
@@ -8,7 +45,84 @@ document.querySelectorAll(".tab").forEach(tab => {
   });
 });
 
-// ── Load and render clusters ──────────────────────────
+// ── Group clusters by explicit "group" field (Jenkins job ID) ─
+// Clusters with the same group value form one RDR group.
+// Clusters with no group field are rendered individually.
+function groupClusters(clusters) {
+  const groups   = {};   // keyed by group value
+  const ungrouped = [];  // clusters with no group field
+
+  clusters.forEach((cluster, index) => {
+    const g = (cluster.group || "").trim();
+    if (!g) {
+      ungrouped.push({ cluster, index });
+    } else {
+      if (!groups[g]) groups[g] = { groupId: g, clusters: [] };
+      groups[g].clusters.push({ cluster, index });
+    }
+  });
+
+  // Build final list: named groups first, then ungrouped singletons
+  const result = Object.values(groups);
+  ungrouped.forEach(item => result.push({ groupId: null, clusters: [item] }));
+  return result;
+}
+
+// ── Render a single cluster card ──────────────────────
+function renderClusterCard(cluster, index, clusters) {
+  const div = document.createElement("div");
+  div.className = "cluster-item";
+  div.setAttribute("draggable", "true");
+  div.dataset.index = index;
+  const role = detectRole(cluster);
+  div.innerHTML = `
+    <span class="drag-handle" style="cursor:grab;color:#666;margin-right:8px;font-size:12px;" title="Drag to reorder">⋮⋮</span>
+    <input type="checkbox" class="cluster-checkbox" data-index="${index}" />
+    <div style="min-width:0;flex:1;">
+      <div class="cluster-name">${escapeHtml(cluster.name)}</div>
+      <div class="cluster-meta">
+        <div class="cluster-url">${escapeHtml(cluster.url)}</div>
+        <div class="tooltip-wrap">
+          <span class="role-badge ${role.key}">${role.icon} ${role.label}</span>
+          <div class="tooltip-box">
+            <div style="font-weight:bold;margin-bottom:4px;">${role.icon} ${role.label}</div>
+            <div style="color:#aaa;">${role.desc}</div>
+            <div style="margin-top:6px;color:#666;font-size:10px;">${escapeHtml(cluster.url)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cluster-actions">
+      <button class="login-btn" data-index="${index}">Login</button>
+      <button class="delete-btn" data-index="${index}" title="Remove cluster">✕</button>
+    </div>
+  `;
+
+  // Checkbox event
+  div.querySelector(".cluster-checkbox").addEventListener("change", updateBulkActionsBar);
+
+  div.querySelector(".login-btn").addEventListener("click", (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "...";
+    loginToCluster(cluster, btn);
+  });
+
+  div.querySelector(".delete-btn").addEventListener("click", () => {
+    clusters.splice(index, 1);
+    chrome.storage.local.set({ clusters }, loadClusters);
+  });
+
+  // Drag and drop events
+  div.addEventListener("dragstart", handleDragStart);
+  div.addEventListener("dragover", handleDragOver);
+  div.addEventListener("drop", handleDrop);
+  div.addEventListener("dragend", handleDragEnd);
+
+  return div;
+}
+
+// ── Load and render clusters with grouping ────────────
 function loadClusters() {
   chrome.storage.local.get("clusters", ({ clusters = [] }) => {
     const list = document.getElementById("cluster-list");
@@ -19,49 +133,127 @@ function loadClusters() {
       return;
     }
 
-    clusters.forEach((cluster, index) => {
-      const div = document.createElement("div");
-      div.className = "cluster-item";
-      div.innerHTML = `
-        <div style="min-width:0">
-          <div class="cluster-name">${escapeHtml(cluster.name)}</div>
-          <div class="cluster-url">${escapeHtml(cluster.url)}</div>
+    const groups = groupClusters(clusters);
+
+    groups.forEach(group => {
+      // Single cluster — no group wrapper needed
+      if (group.clusters.length === 1) {
+        const { cluster, index } = group.clusters[0];
+        list.appendChild(renderClusterCard(cluster, index, clusters));
+        return;
+      }
+
+      // Multiple clusters sharing same base domain → render as RDR group
+      const groupDiv = document.createElement("div");
+      groupDiv.className = "cluster-group";
+      groupDiv.setAttribute("draggable", "true");
+      groupDiv.dataset.groupIndex = groups.indexOf(group);
+
+      // Group label = Jenkins job ID
+      const groupLabel = group.groupId || "RDR Group";
+      const rolesSummary = group.clusters.map(({cluster}) => detectRole(cluster).icon).join(" ");
+
+      // Header — click to expand/collapse, Login All button
+      const header = document.createElement("div");
+      header.className = "group-header";
+      header.innerHTML = `
+        <div class="group-header-left">
+          <span class="drag-handle" style="cursor:grab;color:#4a7ab5;margin-right:6px;font-size:14px;" title="Drag to reorder">⋮⋮</span>
+          <span class="group-chevron">▶</span>
+          <div>
+            <div class="group-name">📦 ${escapeHtml(groupLabel)}</div>
+            <div class="group-meta">${group.clusters.length} clusters &nbsp;${rolesSummary}</div>
+          </div>
         </div>
-        <div class="cluster-actions">
-          <button class="login-btn" data-index="${index}">Login</button>
-          <button class="delete-btn" data-index="${index}" title="Remove cluster">✕</button>
+        <div class="group-actions">
+          <button class="login-all-btn" title="Login to all clusters in this group">⚡ Login All</button>
+          <span class="group-count">${group.clusters.length}</span>
         </div>
       `;
-      list.appendChild(div);
-    });
 
-    // Login buttons
-    document.querySelectorAll(".login-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const cluster = clusters[parseInt(btn.dataset.index)];
+      // Cluster cards container (collapsed by default)
+      const body = document.createElement("div");
+      body.className = "group-body collapsed";
+
+      group.clusters.forEach(({ cluster, index }) => {
+        body.appendChild(renderClusterCard(cluster, index, clusters));
+      });
+
+      // Toggle expand/collapse on header click
+      header.addEventListener("click", (e) => {
+        if (e.target.closest(".login-all-btn")) return; // don't toggle when clicking Login All
+        const collapsed = body.classList.toggle("collapsed");
+        header.querySelector(".group-chevron").textContent = collapsed ? "▶" : "▼";
+      });
+
+      // Login All — login to every cluster in the group
+      header.querySelector(".login-all-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        const btn = e.currentTarget;
+
+        // Prevent duplicate clicks
+        if (btn.dataset.logging === "true") return;
+        btn.dataset.logging = "true";
+
         btn.disabled = true;
-        btn.textContent = "...";
-        loginToCluster(cluster, btn);
-      });
-    });
+        btn.textContent = "⏳ Logging in...";
 
-    // Delete buttons
-    document.querySelectorAll(".delete-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const index = parseInt(btn.dataset.index);
-        clusters.splice(index, 1);
-        chrome.storage.local.set({ clusters }, loadClusters);
+        showStatus("info", `Opening ${group.clusters.length} clusters...`);
+
+        // Get tab opening settings
+        chrome.storage.local.get("settings", ({ settings = {} }) => {
+          const openInBackground = settings.backgroundTabs !== false; // default true
+          const sequential = settings.sequentialTabs === true; // default false (parallel)
+
+          // Open all tabs immediately (before popup closes)
+          // Must create all tabs synchronously or the popup will close after the first tab
+          if (sequential) {
+            // Sequential: open one after another with delay
+            group.clusters.forEach(({ cluster }, idx) => {
+              setTimeout(() => {
+                chrome.tabs.create({ url: cluster.url, active: !openInBackground }, (tab) => {
+                  waitForTabAndLogin(tab.id, cluster, null);
+                });
+              }, idx * 1000); // 1 second between each
+            });
+          } else {
+            // Parallel: open all at once
+            group.clusters.forEach(({ cluster }) => {
+              chrome.tabs.create({ url: cluster.url, active: !openInBackground }, (tab) => {
+                waitForTabAndLogin(tab.id, cluster, null);
+              });
+            });
+          }
+
+          // Show success message
+          showStatus("success", `✅ Opening all ${group.clusters.length} clusters!`);
+
+          // Reset after delay
+          setTimeout(() => {
+            btn.dataset.logging = "false";
+          }, 2000);
+        });
       });
+
+      // Drag and drop events for groups
+      groupDiv.addEventListener("dragstart", handleGroupDragStart);
+      groupDiv.addEventListener("dragover", handleGroupDragOver);
+      groupDiv.addEventListener("drop", handleGroupDrop);
+      groupDiv.addEventListener("dragend", handleGroupDragEnd);
+
+      groupDiv.appendChild(header);
+      groupDiv.appendChild(body);
+      list.appendChild(groupDiv);
     });
   });
 }
 
 // ── Login to cluster ──────────────────────────────────
-function loginToCluster(cluster, btn) {
+function loginToCluster(cluster, btn, forceNewTab = false) {
   showStatus("info", `Opening ${cluster.name}...`);
 
   chrome.storage.local.get("settings", ({ settings = {} }) => {
-    const openNewTab = settings.newTab !== false; // default true
+    const openNewTab = forceNewTab || (settings.newTab !== false); // default true, or force if specified
 
     if (openNewTab) {
       // Open in new tab
@@ -130,7 +322,7 @@ function waitForTabAndLogin(tabId, cluster, btn) {
             }
             if (result === "ok" || result === "submitted") {
               // Form was submitted — now watch for the final redirect to console
-              watchForSuccess(tabId, cluster, btn, listener);
+              watchForSuccess(tabId, cluster, btn);
               settled = true;
               chrome.tabs.onUpdated.removeListener(listener);
             }
@@ -155,7 +347,7 @@ function waitForTabAndLogin(tabId, cluster, btn) {
 }
 
 // ── Watch for successful redirect back to console ─────
-function watchForSuccess(tabId, cluster, btn, oldListener) {
+function watchForSuccess(tabId, cluster, btn) {
   const domain = extractDomain(cluster.url);
   const successListener = (id, info, tab) => {
     if (id !== tabId || info.status !== "complete") return;
@@ -313,6 +505,8 @@ document.getElementById("save-btn").addEventListener("click", () => {
   const url      = document.getElementById("f-url").value.trim();
   const user     = document.getElementById("f-user").value.trim();
   const password = document.getElementById("f-password").value;
+  const role     = document.getElementById("f-role").value.trim();
+  const group    = document.getElementById("f-group").value.trim();
 
   if (!name || !url || !user || !password) {
     showStatus("error", "❌ All fields are required");
@@ -324,11 +518,19 @@ document.getElementById("save-btn").addEventListener("click", () => {
   }
 
   chrome.storage.local.get("clusters", ({ clusters = [] }) => {
-    clusters.push({ name, url, user, password });
+    const newCluster = { name, url, user, password };
+    if (role) newCluster.role = role;
+    if (group) newCluster.group = group;
+
+    clusters.push(newCluster);
     chrome.storage.local.set({ clusters }, () => {
       document.getElementById("add-form").style.display = "none";
       document.getElementById("add-btn").style.display  = "block";
-      ["f-name","f-url","f-user","f-password"].forEach(id => document.getElementById(id).value = "");
+      ["f-name","f-url","f-user","f-password","f-role","f-group"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else el.value = "";
+      });
       loadClusters();
       showStatus("success", `✅ ${name} added!`);
     });
@@ -338,9 +540,11 @@ document.getElementById("save-btn").addEventListener("click", () => {
 // ── Settings ──────────────────────────────────────────
 function loadSettings() {
   chrome.storage.local.get("settings", ({ settings = {} }) => {
-    document.getElementById("toggle-auto").checked    = settings.autoLogin  || false;
-    document.getElementById("toggle-confirm").checked = settings.confirm    !== false; // default true
-    document.getElementById("toggle-newtab").checked  = settings.newTab     !== false; // default true
+    document.getElementById("toggle-auto").checked         = settings.autoLogin       || false;
+    document.getElementById("toggle-confirm").checked      = settings.confirm         !== false; // default true
+    document.getElementById("toggle-newtab").checked       = settings.newTab          !== false; // default true
+    document.getElementById("toggle-background").checked   = settings.backgroundTabs  !== false; // default true
+    document.getElementById("toggle-sequential").checked   = settings.sequentialTabs  || false;  // default false
   });
 }
 
@@ -351,9 +555,195 @@ function saveSetting(key, value) {
   });
 }
 
-document.getElementById("toggle-auto").addEventListener("change",    e => saveSetting("autoLogin", e.target.checked));
-document.getElementById("toggle-confirm").addEventListener("change",  e => saveSetting("confirm",   e.target.checked));
-document.getElementById("toggle-newtab").addEventListener("change",   e => saveSetting("newTab",    e.target.checked));
+document.getElementById("toggle-auto").addEventListener("change",        e => saveSetting("autoLogin",      e.target.checked));
+document.getElementById("toggle-confirm").addEventListener("change",    e => saveSetting("confirm",        e.target.checked));
+document.getElementById("toggle-newtab").addEventListener("change",     e => saveSetting("newTab",         e.target.checked));
+document.getElementById("toggle-background").addEventListener("change", e => saveSetting("backgroundTabs", e.target.checked));
+document.getElementById("toggle-sequential").addEventListener("change", e => saveSetting("sequentialTabs", e.target.checked));
+
+// ── Search / Filter ───────────────────────────────────
+document.getElementById("search-clusters").addEventListener("input", (e) => {
+  const query = e.target.value.toLowerCase();
+  const items = document.querySelectorAll(".cluster-item, .cluster-group");
+
+  items.forEach(item => {
+    if (item.classList.contains("cluster-group")) {
+      // For groups, check if any cluster in the group matches
+      const groupName = item.querySelector(".group-name")?.textContent.toLowerCase() || "";
+      const clusterCards = item.querySelectorAll(".cluster-item");
+      let hasMatch = groupName.includes(query);
+
+      clusterCards.forEach(card => {
+        const name = card.querySelector(".cluster-name")?.textContent.toLowerCase() || "";
+        const url = card.querySelector(".cluster-url")?.textContent.toLowerCase() || "";
+        if (name.includes(query) || url.includes(query)) hasMatch = true;
+      });
+
+      item.style.display = hasMatch ? "" : "none";
+    } else {
+      // For individual cluster items
+      const name = item.querySelector(".cluster-name")?.textContent.toLowerCase() || "";
+      const url = item.querySelector(".cluster-url")?.textContent.toLowerCase() || "";
+      item.style.display = (name.includes(query) || url.includes(query)) ? "" : "none";
+    }
+  });
+});
+
+// ── Bulk Actions ──────────────────────────────────────
+function updateBulkActionsBar() {
+  const checkboxes = document.querySelectorAll(".cluster-checkbox:checked");
+  const bar = document.getElementById("bulk-delete-bar");
+  const count = document.getElementById("selected-count");
+
+  if (checkboxes.length > 0) {
+    bar.style.display = "block";
+    count.textContent = checkboxes.length;
+  } else {
+    bar.style.display = "none";
+  }
+}
+
+document.getElementById("bulk-delete-btn").addEventListener("click", () => {
+  const checkboxes = document.querySelectorAll(".cluster-checkbox:checked");
+  if (checkboxes.length === 0) return;
+
+  if (!confirm(`Delete ${checkboxes.length} cluster(s)? This cannot be undone.`)) return;
+
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index)).sort((a, b) => b - a);
+    indices.forEach(i => clusters.splice(i, 1));
+    chrome.storage.local.set({ clusters }, () => {
+      loadClusters();
+      showStatus("success", `✅ Deleted ${indices.length} cluster(s)`);
+    });
+  });
+});
+
+// ── Drag and Drop Reordering ──────────────────────────
+let draggedElement = null;
+let draggedIndex = null;
+
+function handleDragStart(e) {
+  e.stopPropagation(); // Prevent group from also dragging
+  draggedElement = e.currentTarget;
+  draggedIndex = parseInt(draggedElement.dataset.index);
+  draggedElement.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+
+  const target = e.currentTarget;
+  if (target !== draggedElement && target.classList.contains("cluster-item")) {
+    target.classList.add("drag-over");
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const target = e.currentTarget;
+  target.classList.remove("drag-over");
+
+  if (target === draggedElement || !target.classList.contains("cluster-item")) return;
+
+  const targetIndex = parseInt(target.dataset.index);
+
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    const [movedCluster] = clusters.splice(draggedIndex, 1);
+    clusters.splice(targetIndex, 0, movedCluster);
+    chrome.storage.local.set({ clusters }, loadClusters);
+  });
+}
+
+function handleDragEnd(e) {
+  e.currentTarget.classList.remove("dragging");
+  document.querySelectorAll(".cluster-item").forEach(el => el.classList.remove("drag-over"));
+}
+
+// ── Drag and Drop for Groups ──────────────────────────
+let draggedGroup = null;
+
+function handleGroupDragStart(e) {
+  // Only allow dragging from the header, not from cluster items inside
+  if (e.target.closest(".cluster-item")) {
+    e.preventDefault();
+    return;
+  }
+
+  draggedGroup = e.currentTarget;
+  draggedGroup.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function handleGroupDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+
+  const target = e.currentTarget;
+  if (target !== draggedGroup && target.classList.contains("cluster-group")) {
+    target.classList.add("drag-over");
+  }
+}
+
+function handleGroupDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const target = e.currentTarget;
+  target.classList.remove("drag-over");
+
+  if (target === draggedGroup || !target.classList.contains("cluster-group")) return;
+
+  // Get all groups in current display order
+  const allGroups = Array.from(document.querySelectorAll(".cluster-group"));
+  const draggedIndex = allGroups.indexOf(draggedGroup);
+  const targetIndex = allGroups.indexOf(target);
+
+  if (draggedIndex === -1 || targetIndex === -1) return;
+
+  // Reorder in DOM
+  if (draggedIndex < targetIndex) {
+    target.parentNode.insertBefore(draggedGroup, target.nextSibling);
+  } else {
+    target.parentNode.insertBefore(draggedGroup, target);
+  }
+
+  // Update storage order - we need to rebuild the clusters array based on new group order
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    const newGroups = Array.from(document.querySelectorAll(".cluster-group, .cluster-item:not(.cluster-group .cluster-item)"));
+    const newClusters = [];
+
+    newGroups.forEach(element => {
+      if (element.classList.contains("cluster-group")) {
+        // It's a group - add all its clusters
+        const clusterItems = element.querySelectorAll(".cluster-item");
+        clusterItems.forEach(item => {
+          const idx = parseInt(item.dataset.index);
+          if (!isNaN(idx) && clusters[idx]) {
+            newClusters.push(clusters[idx]);
+          }
+        });
+      } else {
+        // It's a standalone cluster
+        const idx = parseInt(element.dataset.index);
+        if (!isNaN(idx) && clusters[idx]) {
+          newClusters.push(clusters[idx]);
+        }
+      }
+    });
+
+    chrome.storage.local.set({ clusters: newClusters });
+  });
+}
+
+function handleGroupDragEnd(e) {
+  e.currentTarget.classList.remove("dragging");
+  document.querySelectorAll(".cluster-group").forEach(el => el.classList.remove("drag-over"));
+}
 
 // ── Init ──────────────────────────────────────────────
 loadClusters();
@@ -445,6 +835,8 @@ function parseJSON(content) {
     url:      c.url      || c.console_url   || c.consoleUrl   || "",
     user:     c.user     || c.username      || c.user_name    || "",
     password: c.password || c.pass         || c.pwd          || "",
+    role:     c.role     || "",
+    group:    c.group    || "",   // RDR group — Jenkins job ID
   })).filter(c => c.url && c.user && c.password);
 }
 
@@ -479,6 +871,8 @@ function parseYAML(content) {
         if (key === "url")      current.url      = val;
         if (key === "user" || key === "username") current.user = val;
         if (key === "password" || key === "pass" || key === "pwd") current.password = val;
+        if (key === "role")     current.role     = val;
+        if (key === "group")    current.group    = val;
       }
     }
   }
@@ -587,11 +981,19 @@ function confirmImport() {
     chrome.storage.local.set({ clusters }, () => {
       document.getElementById("preview-list").style.display = "none";
       pendingClusters = [];
-      loadClusters(); // Refresh clusters tab
+
+      // ── Bug fix: switch to clusters tab and re-render so user sees results immediately
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      document.querySelector('.tab[data-tab="clusters"]').classList.add("active");
+      document.getElementById("tab-clusters").classList.add("active");
+
+      loadClusters(); // Re-render cluster list
+
       const msg = skipped > 0
         ? `✅ Imported ${added} cluster(s). Skipped ${skipped} duplicate(s).`
         : `✅ Imported ${added} cluster(s) successfully!`;
-      showImportStatus("success", msg);
+      showStatus("success", msg); // Show in clusters tab status
     });
   });
 }
@@ -604,10 +1006,13 @@ document.getElementById("export-btn").addEventListener("click", () => {
       return;
     }
 
-    // Export without passwords for safety — user can add them back
-    const exportData = clusters.map(({ name, url, user, password }) => ({
-      name, url, user, password
-    }));
+    // Export all fields including role and group
+    const exportData = clusters.map(({ name, url, user, password, role, group }) => {
+      const cluster = { name, url, user, password };
+      if (role) cluster.role = role;
+      if (group) cluster.group = group;
+      return cluster;
+    });
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const a = document.createElement("a");

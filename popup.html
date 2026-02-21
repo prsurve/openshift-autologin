@@ -61,9 +61,81 @@
       padding: 10px 12px;
       margin-bottom: 6px;
       border: 1px solid #0f3460;
+      cursor: grab;
+      transition: all 0.2s;
     }
+    .cluster-item:active { cursor: grabbing; }
+    .cluster-item.dragging { opacity: 0.5; }
+    .cluster-item.drag-over { border-top: 3px solid #EE0000; }
     .cluster-name { font-size: 13px; font-weight: bold; }
     .cluster-url  { font-size: 10px; color: #888; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
+
+    /* Checkbox for bulk select */
+    .cluster-checkbox {
+      width: 16px;
+      height: 16px;
+      margin-right: 10px;
+      cursor: pointer;
+      accent-color: #EE0000;
+    }
+
+
+    /* ── Role badge & tooltip ── */
+    .cluster-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 9px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 10px;
+      white-space: nowrap;
+      cursor: default;
+    }
+    .role-badge.hub        { background: #3a1a6e; color: #c084fc; border: 1px solid #7c3aed; }
+    .role-badge.hub-passive{ background: #1a2a4e; color: #93c5fd; border: 1px solid #3b82f6; }
+    .role-badge.primary    { background: #1a3a2a; color: #6ee7b7; border: 1px solid #10b981; }
+    .role-badge.secondary  { background: #2a2a1a; color: #fde68a; border: 1px solid #f59e0b; }
+    .role-badge.unknown    { background: #222;    color: #666;    border: 1px solid #333;    }
+
+    /* Tooltip */
+    .tooltip-wrap { position: relative; display: inline-flex; }
+    .tooltip-wrap .tooltip-box {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0d0d1a;
+      color: #eee;
+      font-size: 11px;
+      font-weight: normal;
+      text-transform: none;
+      letter-spacing: 0;
+      padding: 7px 10px;
+      border-radius: 7px;
+      border: 1px solid #333;
+      white-space: nowrap;
+      z-index: 999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      pointer-events: none;
+      line-height: 1.6;
+      min-width: 180px;
+      text-align: left;
+    }
+    .tooltip-wrap .tooltip-box::after {
+      content: "";
+      position: absolute;
+      top: 100%; left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #333;
+    }
+    .tooltip-wrap:hover .tooltip-box { display: block; }
 
     .cluster-actions { display: flex; align-items: center; gap: 4px; }
 
@@ -323,6 +395,86 @@
       margin-top: 8px;
     }
     .confirm-import-btn:hover { background: #388e3c; }
+
+    /* ── RDR Cluster Groups ── */
+    .cluster-group {
+      margin-bottom: 8px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #1a2a4a;
+      cursor: grab;
+      transition: all 0.2s;
+    }
+    .cluster-group:active { cursor: grabbing; }
+    .cluster-group.dragging { opacity: 0.5; }
+    .cluster-group.drag-over { border-top: 3px solid #EE0000; }
+
+    .group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0f1e3a;
+      padding: 10px 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .group-header:hover { background: #162444; }
+
+    .group-header-left { display: flex; align-items: center; gap: 10px; }
+
+    .group-chevron {
+      font-size: 10px;
+      color: #4a7ab5;
+      transition: transform 0.2s;
+      width: 12px;
+      display: inline-block;
+    }
+
+    .group-name  { font-size: 13px; font-weight: bold; color: #90b8f0; }
+    .group-meta  { font-size: 10px; color: #4a6a8a; margin-top: 2px; }
+
+    .group-actions { display: flex; align-items: center; gap: 8px; }
+
+    .login-all-btn {
+      background: #1a3a6e;
+      color: #90b8f0;
+      border: 1px solid #2a4a8e;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .login-all-btn:hover    { background: #2a4a9e; color: white; }
+    .login-all-btn:disabled { background: #1a2a3a; color: #444; cursor: not-allowed; }
+
+    .group-count {
+      background: #1a2a4a;
+      color: #4a7ab5;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 2px 7px;
+      border-radius: 10px;
+      border: 1px solid #2a3a6a;
+    }
+
+    .group-body { background: #12192e; }
+    .group-body .cluster-item {
+      border-radius: 0;
+      border: none;
+      border-bottom: 1px solid #1a2a3a;
+      margin-bottom: 0;
+      padding-left: 20px; /* indent to show hierarchy */
+    }
+    .group-body .cluster-item:last-child { border-bottom: none; }
+
+    /* Collapse animation */
+    .group-body { max-height: 600px; overflow: hidden; transition: max-height 0.25s ease; }
+    .group-body.collapsed { max-height: 0; }
+
   </style>
 </head>
 <body>
@@ -345,8 +497,21 @@
   <!-- Clusters Tab -->
   <div class="tab-content active" id="tab-clusters">
     <div class="section-title">Your Clusters</div>
+
+    <!-- Search box -->
+    <input type="text" id="search-clusters" placeholder="🔍 Search clusters by name or URL..."
+           style="width:100%;background:#16213e;border:1px solid #0f3460;border-radius:8px;padding:8px 12px;color:#eee;font-size:12px;margin-bottom:10px;" />
+
     <div id="cluster-list"></div>
     <div id="status" class="status"></div>
+
+    <!-- Bulk delete button (bottom) -->
+    <div id="bulk-delete-bar" style="display:none;background:#2a1a1a;border:1px solid #4a2a2a;border-radius:8px;padding:10px 12px;margin-top:10px;margin-bottom:8px;">
+      <button id="bulk-delete-btn" style="width:100%;background:#c62828;color:white;border:none;border-radius:6px;padding:9px;cursor:pointer;font-size:12px;font-weight:bold;">
+        🗑️ Delete <span id="selected-count">0</span> Selected
+      </button>
+    </div>
+
     <button class="add-btn" id="add-btn">+ Add Cluster</button>
 
     <div class="form" id="add-form" style="display:none;">
@@ -358,6 +523,16 @@
       <input type="text"     id="f-user"     placeholder="admin" autocomplete="off" />
       <label>Password</label>
       <input type="password" id="f-password" placeholder="••••••••" autocomplete="off" />
+      <label>Role (optional)</label>
+      <select id="f-role" style="width:100%;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:12px;margin-bottom:10px;">
+        <option value="">Auto-detect</option>
+        <option value="hub">Active Hub</option>
+        <option value="hub-passive">Passive Hub</option>
+        <option value="primary">Primary C1</option>
+        <option value="secondary">Secondary C2</option>
+      </select>
+      <label>Group / Jenkins Job ID (optional)</label>
+      <input type="text"     id="f-group"    placeholder="e.g. jenkins-job-123 or RDR-Group-1" />
       <div class="form-btns">
         <button class="save-btn"   id="save-btn">Save Cluster</button>
         <button class="cancel-btn" id="cancel-btn">Cancel</button>
@@ -465,6 +640,28 @@ PROD_PASSWORD=secret</div>
       </div>
       <label class="toggle">
         <input type="checkbox" id="toggle-newtab" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">🔙 Open tabs in background</div>
+        <div class="setting-desc">Keep current tab active when opening multiple clusters</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-background" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">⏱️ Sequential login (1s delay)</div>
+        <div class="setting-desc">Open clusters one by one instead of all at once</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-sequential" />
         <span class="slider"></span>
       </label>
     </div>
