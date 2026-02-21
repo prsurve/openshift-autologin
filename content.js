@@ -6,11 +6,30 @@
   // ── Check if this is an OpenShift login page ──────────
   // Works on both the console login page AND the OAuth server page
   function isOpenShiftLoginPage() {
+    // Check for login form fields
     const hasUser   = !!document.querySelector("#inputUsername");
     const hasPass   = !!document.querySelector("#inputPassword");
     const hasSubmit = !!document.querySelector("button[type='submit'], input[type='submit']");
+
+    // Check for IDP selection page
     const isIdpPage = !!document.querySelector(".idp-link, [class*='idp'], a[href*='oauth']");
-    return (hasUser && hasPass && hasSubmit) || isIdpPage;
+
+    // Check URL patterns for OpenShift OAuth pages
+    const url = window.location.href;
+    const isOAuthUrl = url.includes("oauth-openshift") ||
+                       url.includes("/oauth/") ||
+                       (url.includes("/login") && url.includes("openshift"));
+
+    // Check page title
+    const title = document.title.toLowerCase();
+    const hasOSTitle = title.includes("openshift") && (title.includes("login") || title.includes("log in"));
+
+    console.log("[Auto-Login Content] Detection details:", {
+      hasUser, hasPass, hasSubmit, isIdpPage, isOAuthUrl, hasOSTitle,
+      url, title
+    });
+
+    return (hasUser && hasPass && hasSubmit) || isIdpPage || (isOAuthUrl && (hasUser || isIdpPage)) || hasOSTitle;
   }
 
   // ── Native value setter (bypasses React/Angular) ──────
@@ -128,45 +147,129 @@
   //  and oauth-openshift.apps.dev.example.com  → same cluster
   function matchCluster(clusters) {
     const currentHost = window.location.hostname;
+    const currentUrl = window.location.href;
 
-    return clusters.find(c => {
+    console.log("[Auto-Login Content] Matching against", clusters.length, "clusters");
+
+    const match = clusters.find(c => {
       try {
         const clusterHost = new URL(c.url).hostname;
 
         // Direct prefix match
-        if (window.location.href.startsWith(c.url)) return true;
+        if (currentUrl.startsWith(c.url)) {
+          console.log("[Auto-Login Content] Direct URL match for", c.name);
+          return true;
+        }
 
         // Match by shared base domain (everything after first subdomain segment)
         // console-openshift-console.apps.dev.ex.com → apps.dev.ex.com
-        const clusterBase = clusterHost.split(".").slice(1).join(".");
-        const currentBase = currentHost.split(".").slice(1).join(".");
+        // oauth-openshift.apps.dev.ex.com → apps.dev.ex.com
+        const clusterParts = clusterHost.split(".");
+        const currentParts = currentHost.split(".");
 
-        return clusterBase.length > 0 && clusterBase === currentBase;
-      } catch {
+        // For apps domains like "apps.example.com", match if current URL contains it
+        if (clusterHost.includes(".apps.") && currentHost.includes(".apps.")) {
+          // Extract the apps domain: console-openshift-console.apps.dev.example.com → apps.dev.example.com
+          const clusterAppsIndex = clusterParts.findIndex(p => p === "apps");
+          const currentAppsIndex = currentParts.findIndex(p => p === "apps");
+
+          if (clusterAppsIndex >= 0 && currentAppsIndex >= 0) {
+            const clusterAppsDomain = clusterParts.slice(clusterAppsIndex).join(".");
+            const currentAppsDomain = currentParts.slice(currentAppsIndex).join(".");
+
+            if (clusterAppsDomain === currentAppsDomain) {
+              console.log("[Auto-Login Content] Apps domain match for", c.name, ":", clusterAppsDomain);
+              return true;
+            }
+          }
+        }
+
+        // Fallback: match by shared base domain
+        const clusterBase = clusterParts.slice(1).join(".");
+        const currentBase = currentParts.slice(1).join(".");
+
+        if (clusterBase.length > 0 && clusterBase === currentBase) {
+          console.log("[Auto-Login Content] Base domain match for", c.name, ":", clusterBase);
+          return true;
+        }
+
+        return false;
+      } catch (err) {
+        console.log("[Auto-Login Content] Error matching cluster", c.name, ":", err);
         return false;
       }
     }) || null;
+
+    return match;
   }
 
   // ── Main auto-detect logic ────────────────────────────
   function run() {
-    if (!isOpenShiftLoginPage()) return;
+    console.log("[Auto-Login Content] Running detection...");
+    console.log("[Auto-Login Content] Current URL:", window.location.href);
+
+    const isLoginPage = isOpenShiftLoginPage();
+    console.log("[Auto-Login Content] Is login page:", isLoginPage);
+
+    if (!isLoginPage) {
+      console.log("[Auto-Login Content] Not a login page, skipping");
+      return;
+    }
 
     chrome.storage.local.get(["clusters", "settings"], ({ clusters = [], settings = {} }) => {
-      if (!settings.autoLogin) return;
+      console.log("[Auto-Login Content] Settings:", settings);
+      console.log("[Auto-Login Content] Auto-login enabled:", settings.autoLogin);
+
+      if (!settings.autoLogin) {
+        console.log("[Auto-Login Content] Auto-login is disabled in settings");
+        return;
+      }
 
       const cluster = matchCluster(clusters);
-      if (!cluster) return;
+      console.log("[Auto-Login Content] Matched cluster:", cluster);
+
+      if (!cluster) {
+        console.log("[Auto-Login Content] No matching cluster found for this URL");
+        console.log("[Auto-Login Content] Available clusters:", clusters.map(c => c.url));
+        return;
+      }
+
+      console.log("[Auto-Login Content] Match found! Cluster:", cluster.name);
 
       if (settings.confirm !== false) {
+        console.log("[Auto-Login Content] Showing confirmation banner");
         showConfirmBanner(cluster.name, cluster.user, cluster.password);
       } else {
+        console.log("[Auto-Login Content] Auto-filling without confirmation");
         handleIdpAndFill(cluster.user, cluster.password);
       }
     });
   }
 
-  // Run after page settles
-  setTimeout(run, 800);
+  // Run after page settles, with retry logic
+  let attempts = 0;
+  const maxAttempts = 5;
+
+  function tryRun() {
+    attempts++;
+    console.log(`[Auto-Login Content] Attempt ${attempts}/${maxAttempts}`);
+
+    // Check if we already ran successfully (banner exists)
+    if (document.getElementById("os-autologin-banner")) {
+      console.log("[Auto-Login Content] Banner already shown, stopping");
+      return;
+    }
+
+    run();
+
+    // Retry if login form hasn't appeared yet
+    if (attempts < maxAttempts && !isOpenShiftLoginPage()) {
+      console.log("[Auto-Login Content] Login form not found yet, retrying in 1s...");
+      setTimeout(tryRun, 1000);
+    }
+  }
+
+  // Start after initial page load
+  setTimeout(tryRun, 800);
 
 })();
