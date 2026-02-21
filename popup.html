@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+
+    body { width: 340px; background: #1a1a2e; color: #eee; }
+
+    /* ── Header ── */
+    .header {
+      background: #EE0000;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header h1   { font-size: 15px; font-weight: bold; color: white; }
+    .header span { font-size: 22px; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      background: #12122a;
+      border-bottom: 1px solid #222;
+    }
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 12px;
+      cursor: pointer;
+      color: #888;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab.active { color: #EE0000; border-bottom: 2px solid #EE0000; background: #1a1a2e; }
+    .tab:hover  { color: #eee; }
+
+    /* ── Tab content ── */
+    .tab-content { display: none; padding: 14px 16px; }
+    .tab-content.active { display: block; }
+
+    /* ── Section title ── */
+    .section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+    }
+
+    /* ── Cluster card ── */
+    .cluster-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #16213e;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      border: 1px solid #0f3460;
+    }
+    .cluster-name { font-size: 13px; font-weight: bold; }
+    .cluster-url  { font-size: 10px; color: #888; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
+
+    .cluster-actions { display: flex; align-items: center; gap: 4px; }
+
+    .login-btn {
+      background: #EE0000;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .login-btn:hover    { background: #cc0000; }
+    .login-btn:disabled { background: #555; cursor: not-allowed; }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+    .delete-btn:hover { color: #f44336; background: #2a1a1a; }
+
+    /* ── Add cluster btn ── */
+    .add-btn {
+      width: 100%;
+      background: #0f3460;
+      color: #eee;
+      border: 1px dashed #444;
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      margin-top: 4px;
+      transition: background 0.2s;
+    }
+    .add-btn:hover { background: #16213e; }
+
+    /* ── Form ── */
+    .form {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 8px;
+      border: 1px solid #0f3460;
+    }
+    .form label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
+    .form input {
+      width: 100%;
+      background: #1a1a2e;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: #eee;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    .form input:focus   { outline: none; border-color: #EE0000; }
+    .form input::placeholder { color: #444; }
+
+    .form-btns { display: flex; gap: 8px; }
+    .save-btn {
+      flex: 1;
+      background: #EE0000;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .save-btn:hover   { background: #cc0000; }
+    .cancel-btn {
+      flex: 1;
+      background: #333;
+      color: #eee;
+      border: none;
+      border-radius: 6px;
+      padding: 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .cancel-btn:hover { background: #444; }
+
+    /* ── Status ── */
+    .status {
+      font-size: 11px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      margin-top: 8px;
+      display: none;
+    }
+    .status.success { background: #1a3a1a; color: #4caf50; display: block; }
+    .status.error   { background: #3a1a1a; color: #f44336; display: block; }
+    .status.info    { background: #1a2a3a; color: #64b5f6; display: block; }
+
+    /* ── No clusters ── */
+    .no-clusters { text-align: center; color: #555; font-size: 12px; padding: 20px 0; }
+
+    /* ── Settings tab ── */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #16213e;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      border: 1px solid #0f3460;
+    }
+    .setting-label { font-size: 13px; }
+    .setting-desc  { font-size: 11px; color: #888; margin-top: 3px; }
+
+    /* Toggle switch */
+    .toggle { position: relative; display: inline-block; width: 40px; height: 22px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #333; border-radius: 22px;
+      transition: 0.3s;
+    }
+    .slider:before {
+      position: absolute; content: "";
+      height: 16px; width: 16px;
+      left: 3px; bottom: 3px;
+      background: white; border-radius: 50%;
+      transition: 0.3s;
+    }
+    input:checked + .slider { background: #EE0000; }
+    input:checked + .slider:before { transform: translateX(18px); }
+
+    .setting-note {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: #888;
+      border: 1px solid #0f3460;
+      line-height: 1.6;
+    }
+    .setting-note b { color: #aaa; }
+
+    /* ── Import tab ── */
+    .import-drop-zone {
+      border: 2px dashed #0f3460;
+      border-radius: 10px;
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #16213e;
+      margin-bottom: 10px;
+    }
+    .import-drop-zone:hover,
+    .import-drop-zone.dragover { border-color: #EE0000; background: #1e1a2e; }
+    .import-drop-zone .drop-icon  { font-size: 32px; margin-bottom: 8px; }
+    .import-drop-zone .drop-title { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+    .import-drop-zone .drop-sub   { font-size: 11px; color: #666; }
+
+    .format-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .format-tab {
+      flex: 1;
+      padding: 6px;
+      text-align: center;
+      font-size: 11px;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #16213e;
+      border: 1px solid #0f3460;
+      color: #888;
+    }
+    .format-tab.active { background: #EE0000; color: white; border-color: #EE0000; }
+
+    .format-example {
+      background: #0d0d1a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 10px;
+      color: #6a9;
+      font-family: monospace;
+      line-height: 1.6;
+      white-space: pre;
+      overflow-x: auto;
+      border: 1px solid #1a2a1a;
+      margin-bottom: 10px;
+      display: none;
+    }
+    .format-example.active { display: block; }
+
+    .import-actions { display: flex; gap: 8px; margin-top: 6px; }
+    .import-btn {
+      flex: 1;
+      background: #EE0000;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 9px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .import-btn:hover { background: #cc0000; }
+    .export-btn {
+      flex: 1;
+      background: #0f3460;
+      color: #eee;
+      border: none;
+      border-radius: 6px;
+      padding: 9px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .export-btn:hover { background: #16213e; }
+
+    .preview-list {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      border: 1px solid #0f3460;
+      display: none;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+    .preview-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid #1a2a3a;
+      font-size: 12px;
+    }
+    .preview-item:last-child { border-bottom: none; }
+    .preview-dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf50; flex-shrink: 0; }
+    .preview-dot.warn { background: #ff9800; }
+    .confirm-import-btn {
+      width: 100%;
+      background: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 9px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+    .confirm-import-btn:hover { background: #388e3c; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <img src="icon48.png" width="32" height="32" style="border-radius:50%;box-shadow:0 0 6px rgba(0,0,0,0.4);" alt="logo"/>
+      <h1>OpenShift Auto-Login</h1>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="clusters">🖥 Clusters</div>
+    <div class="tab" data-tab="import">📂 Import</div>
+    <div class="tab" data-tab="settings">⚙️ Settings</div>
+  </div>
+
+  <!-- Clusters Tab -->
+  <div class="tab-content active" id="tab-clusters">
+    <div class="section-title">Your Clusters</div>
+    <div id="cluster-list"></div>
+    <div id="status" class="status"></div>
+    <button class="add-btn" id="add-btn">+ Add Cluster</button>
+
+    <div class="form" id="add-form" style="display:none;">
+      <label>Cluster Name</label>
+      <input type="text"     id="f-name"     placeholder="e.g. Dev / Staging / Prod" />
+      <label>Console URL</label>
+      <input type="url"      id="f-url"      placeholder="https://console-openshift-console.apps..." />
+      <label>Username</label>
+      <input type="text"     id="f-user"     placeholder="admin" autocomplete="off" />
+      <label>Password</label>
+      <input type="password" id="f-password" placeholder="••••••••" autocomplete="off" />
+      <div class="form-btns">
+        <button class="save-btn"   id="save-btn">Save Cluster</button>
+        <button class="cancel-btn" id="cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Tab -->
+  <div class="tab-content" id="tab-import">
+    <div class="section-title">Import Clusters from File</div>
+
+    <!-- Drag & Drop Zone -->
+    <div class="import-drop-zone" id="drop-zone">
+      <div class="drop-icon">📂</div>
+      <div class="drop-title">Drop file here or click to browse</div>
+      <div class="drop-sub">Supports JSON · YAML · .env</div>
+      <input type="file" id="file-input" accept=".json,.yaml,.yml,.env,.txt" style="display:none"/>
+    </div>
+
+    <!-- Format Examples -->
+    <div class="section-title" style="margin-top:4px;">Supported File Formats</div>
+    <div class="format-tabs">
+      <div class="format-tab active" data-fmt="json">JSON</div>
+      <div class="format-tab" data-fmt="yaml">YAML</div>
+      <div class="format-tab" data-fmt="env">.env</div>
+    </div>
+
+    <div class="format-example active" id="fmt-json">[
+  {
+    "name": "Dev",
+    "url": "https://console.apps.dev.example.com",
+    "user": "admin",
+    "password": "secret"
+  },
+  {
+    "name": "Prod",
+    "url": "https://console.apps.prod.example.com",
+    "user": "admin",
+    "password": "secret"
+  }
+]</div>
+
+    <div class="format-example" id="fmt-yaml">clusters:
+  - name: Dev
+    url: https://console.apps.dev.example.com
+    user: admin
+    password: secret
+  - name: Prod
+    url: https://console.apps.prod.example.com
+    user: admin
+    password: secret</div>
+
+    <div class="format-example" id="fmt-env">DEV_NAME=Dev
+DEV_URL=https://console.apps.dev.example.com
+DEV_USER=admin
+DEV_PASSWORD=secret
+
+PROD_NAME=Prod
+PROD_URL=https://console.apps.prod.example.com
+PROD_USER=admin
+PROD_PASSWORD=secret</div>
+
+    <!-- Preview after file load -->
+    <div class="preview-list" id="preview-list"></div>
+
+    <div id="import-status" class="status"></div>
+
+    <!-- Actions -->
+    <div class="import-actions">
+      <button class="import-btn" id="browse-btn">📂 Browse File</button>
+      <button class="export-btn" id="export-btn">💾 Export JSON</button>
+    </div>
+  </div>
+
+  <!-- Settings Tab -->
+  <div class="tab-content" id="tab-settings">
+    <div class="section-title">Auto-Login Behaviour</div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">🤖 Auto-detect & Login</div>
+        <div class="setting-desc">Auto-fill when OpenShift login page detected</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-auto" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">💬 Show confirmation prompt</div>
+        <div class="setting-desc">Ask before auto-filling credentials</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-confirm" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">🆕 Open in new tab</div>
+        <div class="setting-desc">Open cluster URL in a new tab when logging in</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-newtab" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <br/>
+    <div class="setting-note">
+      <b>Auto-detect</b> works by checking if the current page is an OpenShift login page
+      and matching the URL to one of your saved clusters. If a match is found, credentials
+      are filled automatically (or after confirmation).
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
