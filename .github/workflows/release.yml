@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 2.2 or v2.2)'
+        description: 'Release version (e.g., 2.2 or v2.2) - tag must already exist or will be created from current commit'
         required: true
         type: string
       release_name:
@@ -22,6 +22,11 @@ on:
         default: 'See README for full feature list and usage instructions.'
       prerelease:
         description: 'Mark as pre-release?'
+        required: false
+        type: boolean
+        default: false
+      recreate:
+        description: 'Delete and recreate existing release?'
         required: false
         type: boolean
         default: false
@@ -131,14 +136,34 @@ jobs:
           echo "Release notes generated:"
           cat release_notes.md
 
-      - name: Delete existing release and tag (manual trigger only)
+      - name: Check if tag exists (manual trigger only)
         if: github.event_name == 'workflow_dispatch'
+        id: check_tag
+        run: |
+          if git ls-remote --tags origin | grep -q "refs/tags/${{ steps.get_version.outputs.tag }}$"; then
+            echo "Tag ${{ steps.get_version.outputs.tag }} exists on remote"
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag ${{ steps.get_version.outputs.tag }} does not exist on remote"
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create local tag if needed (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && steps.check_tag.outputs.tag_exists == 'false'
+        run: |
+          echo "Creating local tag ${{ steps.get_version.outputs.tag }} from current commit"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.get_version.outputs.tag }} -m "Release ${{ steps.get_version.outputs.tag }}"
+
+      - name: Delete existing release (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && inputs.recreate == true
         continue-on-error: true
         run: |
-          # Check if release exists and delete it (this also deletes the tag)
+          # Check if release exists and delete it (keep the tag)
           if gh release view ${{ steps.get_version.outputs.tag }} >/dev/null 2>&1; then
             echo "Release ${{ steps.get_version.outputs.tag }} exists, deleting it..."
-            gh release delete ${{ steps.get_version.outputs.tag }} --yes --cleanup-tag
+            gh release delete ${{ steps.get_version.outputs.tag }} --yes
           else
             echo "No existing release found for ${{ steps.get_version.outputs.tag }}"
           fi
@@ -146,6 +171,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
+        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.tag }}
@@ -155,5 +181,15 @@ jobs:
             openshift-autologin-v${{ steps.get_version.outputs.version }}.zip
           draft: false
           prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
+          fail_on_unmatched_files: true
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Output release information
+        if: success()
+        run: |
+          echo "✅ Release created successfully!"
+          echo "📦 Release: ${{ steps.get_version.outputs.release_name }}"
+          echo "🏷️ Tag: ${{ steps.get_version.outputs.tag }}"
+          echo "🔗 URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag }}"
