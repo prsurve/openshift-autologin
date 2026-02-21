@@ -226,6 +226,21 @@
     }
     .cancel-btn:hover { background: #444; }
 
+    /* ── Test Connection Button ── */
+    .test-connection-btn {
+      width: 100%;
+      background: #1a3a6e;
+      color: #90b8f0;
+      border: 1px solid #2a4a8e;
+      border-radius: 6px;
+      padding: 8px;
+      cursor: pointer;
+      font-size: 11px;
+      margin-bottom: 4px;
+      transition: background 0.15s;
+    }
+    .test-connection-btn:hover { background: #2a4a9e; color: white; }
+
     /* ── Status ── */
     .status {
       font-size: 11px;
@@ -520,7 +535,7 @@
       <label>Console URL</label>
       <input type="url"      id="f-url"      placeholder="https://console-openshift-console.apps..." />
       <label>Username</label>
-      <input type="text"     id="f-user"     placeholder="admin" autocomplete="off" />
+      <input type="text"     id="f-user"     placeholder="kubeadmin (default)" autocomplete="off" />
       <label>Password</label>
       <input type="password" id="f-password" placeholder="••••••••" autocomplete="off" />
       <label>Role (optional)</label>
@@ -533,6 +548,14 @@
       </select>
       <label>Group / Jenkins Job ID (optional)</label>
       <input type="text"     id="f-group"    placeholder="e.g. jenkins-job-123 or RDR-Group-1" />
+
+      <button class="test-connection-btn" id="test-connection-btn" type="button">
+        🔗 Test Connection (Accept Certificate)
+      </button>
+      <div style="font-size:10px;color:#666;margin-bottom:10px;padding:0 4px;">
+        💡 If your cluster uses a self-signed certificate, click this first to accept it, then save.
+      </div>
+
       <div class="form-btns">
         <button class="save-btn"   id="save-btn">Save Cluster</button>
         <button class="cancel-btn" id="cancel-btn">Cancel</button>
@@ -671,6 +694,21 @@ PROD_PASSWORD=secret</div>
       <b>Auto-detect</b> works by checking if the current page is an OpenShift login page
       and matching the URL to one of your saved clusters. If a match is found, credentials
       are filled automatically (or after confirmation).
+    </div>
+
+    <br/>
+    <div class="setting-note">
+      <b>🔒 SSL Certificate Warnings:</b> Chrome does not allow extensions to bypass certificate
+      warnings automatically (security restriction). You must manually click <b>Advanced → Proceed</b>.
+      <br/><br/>
+      <b>⚡ WORKAROUND - Accept certificates first:</b>
+      <br/>
+      1. Before adding a cluster, manually visit its URL in a new tab<br/>
+      2. Click "Advanced" → "Proceed to [site] (unsafe)"<br/>
+      3. Chrome remembers this choice and won't show the warning again<br/>
+      4. Now add the cluster - auto-login will work without prompts!
+      <br/><br/>
+      <b>Alternative:</b> Use <code>http://</code> URLs if your cluster supports it (not recommended for production).
     </div>
   </div>
 

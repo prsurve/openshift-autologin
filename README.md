@@ -4,12 +4,20 @@
 
 **Perfect for:** QE teams, OpenShift administrators, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-2.0-red)
+![Version](https://img.shields.io/badge/version-2.1-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v2.0:**
+**New in v2.1:**
+- 🔒 Smart SSL certificate warning detection and handling
+- 🔗 Test Connection button to pre-accept certificates
+- 💾 Form state persistence across tab switches
+- 🔄 Enhanced OAuth login page detection and domain matching
+- ⏱️ Extended timeout (45s) for manual certificate acceptance
+- 🐛 Default username "kubeadmin" auto-filled on new clusters
+
+**v2.0 Features:**
 - ⚡ Login All — batch login to grouped clusters
 - 🔍 Search & filter clusters in real-time
 - ⋮⋮ Drag-and-drop reordering for clusters and groups
@@ -40,6 +48,9 @@ For RDR setups with grouped clusters, use the `group` field to enable **⚡ Logi
 | 📦 **RDR Grouping** | Auto-groups clusters by Jenkins job ID or custom group field |
 | 🤖 **Auto-detect** | Detects OpenShift login pages and offers to fill credentials |
 | 🔀 **OAuth aware** | Handles full OAuth/IDP redirect chains transparently |
+| 🔒 **SSL Certificate Handling** | Detects certificate warnings and waits for manual acceptance |
+| 🔗 **Test Connection** | Pre-accept certificates before saving clusters |
+| 💾 **Form Auto-save** | Preserves cluster details when switching tabs or closing popup |
 | 🏷 **Role badges** | Identifies Hub, Passive Hub, C1, C2 clusters with colour-coded badges |
 | 🔍 **Search & Filter** | Real-time search across cluster names and URLs |
 | ⋮⋮ **Drag & Drop** | Reorder clusters and groups by dragging them |
@@ -96,12 +107,20 @@ When you have multiple clusters grouped together (by `group` field):
 2. Fill in the required fields:
    - **Cluster Name**: e.g. "Dev" or "Prod Hub"
    - **Console URL**: Full OpenShift console URL
-   - **Username**: Cluster login username
+   - **Username**: Defaults to "kubeadmin" — change if needed
    - **Password**: Cluster login password
 3. Optional fields:
    - **Role**: Select from Active Hub, Passive Hub, Primary C1, Secondary C2 (or leave for auto-detect)
    - **Group / Jenkins Job ID**: Clusters with the same group value are grouped together
-4. Click **Save Cluster**
+4. **(New in v2.1)** **Test Connection**: If your cluster uses a self-signed certificate:
+   - Click **🔗 Test Connection (Accept Certificate)**
+   - A new tab opens to the cluster URL
+   - Click "Advanced" → "Proceed to [site] (unsafe)"
+   - Close the tab and return to save your cluster
+   - This prevents certificate warnings during auto-login
+5. Click **Save Cluster**
+
+> **Tip:** The form auto-saves your input as you type. If you switch tabs or the popup closes, your partially-entered data will be restored when you reopen it.
 
 ### Search & Filter
 
@@ -305,9 +324,63 @@ https://console-openshift-console.apps.mycluster.example.com
 The extension handles this transparently by:
 
 - **Tracking the full redirect chain** — waits for the page to fully settle before injecting credentials, so it never fires too early
-- **Domain matching** — recognises both `console-openshift-console.apps.*` and `oauth-openshift.apps.*` as the same cluster by comparing the shared base domain
+- **Domain matching** **(Enhanced in v2.1)** — recognises both `console-openshift-console.apps.*` and `oauth-openshift.apps.*` as the same cluster by comparing the shared base domain. Improved algorithm matches OAuth pages more reliably
 - **IDP selection** — automatically clicks through `htpasswd`, `Local`, or any provider selection screen before the login form appears
 - **Native input filling** — uses the browser's native value setter to bypass React/Angular controlled inputs that silently ignore direct `.value` assignments
+- **Login page detection** **(Enhanced in v2.1)** — better recognition of OAuth URLs, IDP selection pages, and page titles
+- **Retry logic** **(New in v2.1)** — up to 5 retry attempts over 5 seconds for slow-loading OAuth pages
+- **Certificate handling** **(New in v2.1)** — detects SSL warnings, waits for manual acceptance, then auto-resumes login
+
+---
+
+## 🔒 SSL Certificate Handling
+
+**New in v2.1:** The extension now intelligently handles self-signed and untrusted SSL certificates.
+
+### How It Works
+
+Chrome extensions **cannot bypass SSL certificate warnings automatically** due to browser security restrictions. However, v2.1 includes smart detection and guidance:
+
+1. **Automatic Detection**: When the extension encounters "Your connection is not private" (ERR_CERT_AUTHORITY_INVALID), it detects this and displays a helpful status message
+2. **Visual Feedback**: You'll see: `🔒 Certificate warning detected. Click "Advanced" → "Proceed" in the tab, then auto-login will continue.`
+3. **Automatic Continuation**: Once you click "Proceed", the extension automatically resumes the login process
+4. **Extended Timeout**: Login timeout increased to 45 seconds to accommodate manual certificate acceptance
+
+### Best Practice: Pre-Accept Certificates
+
+To avoid certificate prompts during auto-login:
+
+**Option 1: Test Connection Button (Recommended)**
+1. When adding a cluster, enter the Console URL
+2. Click **🔗 Test Connection (Accept Certificate)**
+3. A new tab opens — click "Advanced" → "Proceed to [site] (unsafe)"
+4. Close the tab and save your cluster
+5. Future logins to this cluster won't show certificate warnings
+
+**Option 2: Manual Pre-Visit**
+1. Before adding a cluster, manually visit its URL in a browser tab
+2. Accept the certificate warning once
+3. Chrome remembers your choice
+4. Add the cluster — auto-login now works seamlessly
+
+**Option 3: Use HTTP (Not Recommended for Production)**
+- If your cluster supports `http://` URLs, these won't trigger certificate warnings
+- Only suitable for development/test environments
+
+### Troubleshooting Certificate Issues
+
+**Login stuck at certificate warning page:**
+- Make sure you click both "Advanced" AND "Proceed to [site]" buttons
+- Wait for the page to fully load after accepting
+- Check browser console logs for detailed status messages
+
+**Certificate warning reappears:**
+- Chrome may forget the exception if you clear browsing data
+- Re-accept the certificate using Test Connection or manual visit
+
+**Auto-login times out:**
+- Ensure you're clicking "Proceed" within 45 seconds
+- Check that the cluster URL in your saved configuration is correct
 
 ---
 
@@ -330,30 +403,87 @@ openshift-autologin/
 
 ## 🔧 Troubleshooting
 
-### Login All opens only one cluster
-Make sure all tabs are created synchronously. This issue was fixed in v2.0 — update to the latest version.
+### SSL Certificate Warnings
 
-### Drag and drop isn't working
+**Login stuck at "Your connection is not private":**
+- This is expected for self-signed certificates — Chrome requires manual acceptance
+- Click "Advanced" → "Proceed to [site] (unsafe)"
+- The extension will automatically continue login after acceptance
+- See [SSL Certificate Handling](#-ssl-certificate-handling) for detailed solutions
+
+**Certificate warning appears every time:**
+- Use the **🔗 Test Connection** button before saving the cluster
+- This pre-accepts the certificate so future logins are seamless
+- Alternatively, manually visit the cluster URL once to accept the certificate
+
+### Auto-Login Issues
+
+**Auto-login popup doesn't appear on OAuth page:**
+- Check that **Auto-detect & Login** is enabled in **⚙️ Settings**
+- Ensure the cluster's console URL is saved correctly (matches the domain)
+- Open browser DevTools → Console tab and look for `[Auto-Login Content]` log messages
+- Verify the cluster URL in your saved configuration matches the OAuth page domain
+
+**Login times out:**
+- Default timeout is 45 seconds (increased in v2.1 for certificate acceptance)
+- Check credentials are correct
+- Ensure cluster URL is accessible
+- Look for certificate warnings that need manual acceptance
+
+### Form and Data Issues
+
+**Form clears when switching tabs:**
+- This was fixed in v2.1 — form data now auto-saves as you type
+- If it still happens, reload the extension at `chrome://extensions/`
+
+**Lost cluster data while adding:**
+- Form state is automatically saved in v2.1
+- Reopen the popup — your partially-entered data should be restored
+- Click Cancel to clear the saved form state
+
+### Login All Issues
+
+**Login All opens only one cluster:**
+- Make sure all tabs are created synchronously. This issue was fixed in v2.0 — update to the latest version
+
+**Too many tabs opening at once:**
+- Go to **⚙️ Settings** → Enable **⏱️ Sequential login (1s delay)**
+- This opens clusters one by one instead of all at once
+
+### UI and Organization
+
+**Drag and drop isn't working:**
 - Ensure you're clicking the **⋮⋮** drag handle, not other parts of the card
 - For groups, drag from the group header, not individual cluster cards inside
 
-### Search isn't showing any results
+**Search isn't showing any results:**
 - Check your spelling — search is case-insensitive but must match exactly
 - Clear the search box to reset and show all clusters
 
-### Bulk delete button doesn't appear
-Select at least one cluster using the checkboxes. The delete button appears at the bottom only when items are selected.
+**Bulk delete button doesn't appear:**
+- Select at least one cluster using the checkboxes
+- The delete button appears at the bottom only when items are selected
 
-### Import file isn't being recognized
+**Groups aren't appearing:**
+- Ensure multiple clusters have the exact same `group` value
+- Groups only appear when 2+ clusters share a group identifier
+
+### Import/Export Issues
+
+**Import file isn't being recognized:**
 - Ensure the file has the correct extension (`.json`, `.yaml`, `.yml`, `.env`, `.txt`)
 - Verify the file structure matches the examples in [Supported Import File Formats](#-supported-import-file-formats)
 - Check for JSON syntax errors (missing commas, quotes, etc.)
 
-### Tabs open in foreground instead of background
-Go to **⚙️ Settings** → Enable **🔙 Open tabs in background**
+### Settings
 
-### Groups aren't appearing
-Ensure multiple clusters have the exact same `group` value. Groups only appear when 2+ clusters share a group identifier.
+**Tabs open in foreground instead of background:**
+- Go to **⚙️ Settings** → Enable **🔙 Open tabs in background**
+
+**Auto-login not working:**
+- Verify **🤖 Auto-detect & Login** is enabled in Settings
+- Check browser console for `[Auto-Login Content]` debug messages
+- Ensure the page URL matches a saved cluster's domain
 
 ## 🔒 Security Notes
 
@@ -378,12 +508,25 @@ To modify the extension and test your changes:
 
 | File | Key Functions |
 |---|---|
-| `popup.js` | `loginToCluster()`, `waitForTabAndLogin()`, `performLogin()`, `detectRole()`, `groupClusters()`, `renderClusterCard()`, `handleDragStart/Drop()`, `handleGroupDragStart/Drop()`, import/export parsers |
-| `popup.html` | UI layout, role badge tooltips, search input, bulk delete bar, drag handles |
-| `content.js` | Auto-detect logic, domain matching, confirmation banner, credential filling |
+| `popup.js` | `loginToCluster()`, `waitForTabAndLogin()`, `performLogin()`, `isCertificateErrorPage()`, `detectRole()`, `groupClusters()`, `renderClusterCard()`, `handleDragStart/Drop()`, `handleGroupDragStart/Drop()`, `saveFormState()`, `restoreFormState()`, import/export parsers |
+| `popup.html` | UI layout, role badge tooltips, search input, bulk delete bar, drag handles, test connection button |
+| `content.js` | Auto-detect logic, domain matching, confirmation banner, credential filling, `matchCluster()` |
 | `background.js` | Sets default settings on first install |
 
-### New functions in v2.0
+### New functions in v2.1
+
+| Function | Purpose |
+|---|---|
+| `isCertificateErrorPage()` | Detects SSL certificate warning pages by URL and title |
+| `saveFormState()` | Persists form data to chrome.storage.local when adding clusters |
+| `restoreFormState()` | Restores saved form data when popup reopens |
+| `clearFormState()` | Removes saved form data after save/cancel |
+| `setupFormAutosave()` | Attaches input/change listeners for real-time form saving |
+| Enhanced `matchCluster()` | Improved domain matching for oauth-openshift URLs |
+| Enhanced `isOpenShiftLoginPage()` | Better OAuth and IDP page detection |
+| Certificate handling in `waitForTabAndLogin()` | Tracks cert errors, waits for acceptance, auto-resumes login |
+
+### Functions added in v2.0
 
 | Function | Purpose |
 |---|---|
@@ -415,6 +558,18 @@ It's removed from local storage permanently. Export your clusters regularly to b
 ### Can I use this with SSO/OAuth?
 Yes! The extension handles full OAuth redirect chains, including identity provider selection.
 
+### Why does the extension need manual certificate acceptance?
+Chrome's security model prevents extensions from bypassing SSL certificate warnings. This is a browser restriction, not a limitation of the extension. Use the **Test Connection** button to pre-accept certificates before saving clusters.
+
+### What happens if I close the popup while adding a cluster?
+**New in v2.1:** Your form data is automatically saved! Reopen the popup and your partially-entered cluster details will be restored. Click Cancel to clear the saved data.
+
+### Does auto-login work on oauth-openshift URLs?
+**Improved in v2.1:** Yes! The extension now better detects OAuth login pages and matches them to saved clusters by domain. Enable **Auto-detect & Login** in Settings to use this feature.
+
+### What's the default username when adding a cluster?
+**New in v2.1:** The username field defaults to "kubeadmin" when you click Add Cluster. You can change it to any username you need.
+
 ## 🎯 Tips & Tricks
 
 ### Organizing Your Clusters
@@ -423,6 +578,22 @@ Yes! The extension handles full OAuth redirect chains, including identity provid
 2. **Group related clusters**: Use the same `group` value for RDR cluster sets
 3. **Leverage role detection**: Add explicit `role` fields for accurate badge colors
 4. **Reorder strategically**: Drag frequently-used clusters to the top
+
+### Working with Self-Signed Certificates (v2.1)
+
+1. **Pre-accept certificates first**: Before adding clusters, use **Test Connection** to accept certificates
+2. **One-time acceptance**: Chrome remembers certificate exceptions, so you only need to accept once
+3. **Watch for status messages**: The extension shows `🔒 Certificate warning detected` when it encounters cert errors
+4. **Extended timeout**: You have 45 seconds to manually accept certificates before timeout
+5. **Manual pre-visit**: Alternatively, visit cluster URLs manually in a tab before adding them
+
+### Form Data Management (v2.1)
+
+1. **Auto-save is active**: Form data saves as you type — no need to worry about losing progress
+2. **Switch tabs freely**: Your partially-entered cluster details persist across tab switches
+3. **Resume later**: Close the popup and reopen — your form will be restored
+4. **Clear when done**: Click Cancel or Save to clear the auto-saved form state
+5. **Default username**: "kubeadmin" auto-fills — just change it if you need a different user
 
 ### Performance Optimization
 
@@ -445,10 +616,25 @@ For Regional Disaster Recovery environments with Hub + C1 + C2:
 3. Use **Login All** to open all clusters in the RDR group with one click
 4. Enable **Background tabs** to avoid disrupting your current work
 
+### Auto-Login Best Practices (v2.1)
+
+1. **Enable selectively**: Turn on auto-login only for trusted environments
+2. **Use confirmation**: Keep **Show confirmation prompt** ON for safety
+3. **Check console logs**: Open DevTools → Console to see detailed auto-login debug messages
+4. **Domain matching**: The extension matches oauth-openshift URLs to console URLs automatically
+5. **Retry logic**: Login pages have 5 retry attempts over 5 seconds for slow-loading OAuth pages
+
 ## 🤝 Contributing
 
 Contributions are welcome! Ideas for future improvements:
 
+**Completed in v2.1:**
+- [x] SSL certificate warning detection and handling
+- [x] Form state persistence across popup sessions
+- [x] Enhanced OAuth login page detection
+- [x] Better domain matching for OAuth redirects
+
+**Future ideas:**
 - [ ] Chrome Web Store publication
 - [ ] Token-based login (Bearer token / kubeconfig import)
 - [ ] Per-cluster IDP provider configuration
@@ -456,6 +642,7 @@ Contributions are welcome! Ideas for future improvements:
 - [ ] Firefox / WebExtensions support
 - [ ] Import from kubeconfig files
 - [ ] Export to other formats (.env, CSV)
+- [ ] Automatic certificate acceptance via certificate API (if Chrome adds extension support)
 
 Please open an issue or pull request on GitHub.
 

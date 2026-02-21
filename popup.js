@@ -275,6 +275,8 @@ function waitForTabAndLogin(tabId, cluster, btn) {
   let settled = false;
   let lastUrl = "";
   let stabilizeTimer = null;
+  let certErrorShown = false;
+  let certJustAccepted = false;
 
   const listener = (id, info, tab) => {
     if (id !== tabId) return;
@@ -284,18 +286,85 @@ function waitForTabAndLogin(tabId, cluster, btn) {
       lastUrl = tab.url;
       // Reset stabilize timer on every URL change
       if (stabilizeTimer) clearTimeout(stabilizeTimer);
+      console.log(`[Auto-Login] URL changed to: ${tab.url}`);
     }
 
     if (info.status !== "complete") return;
 
     // Wait a bit after "complete" to let any JS redirects settle
     if (stabilizeTimer) clearTimeout(stabilizeTimer);
+
     stabilizeTimer = setTimeout(() => {
       // Check if the page has moved on to a new URL since we started
       chrome.tabs.get(tabId, (currentTab) => {
         if (chrome.runtime.lastError) return;
 
         const currentUrl = currentTab.url || "";
+        const currentTitle = currentTab.title || "";
+
+        console.log(`[Auto-Login] Status check - URL: ${currentUrl}, Title: ${currentTitle}, certErrorShown: ${certErrorShown}, settled: ${settled}`);
+
+        // ── Detect SSL certificate errors ──
+        const isCertError = isCertificateErrorPage(currentUrl, currentTitle);
+
+        if (isCertError) {
+          if (!certErrorShown) {
+            certErrorShown = true;
+            console.log(`[Auto-Login] Certificate error detected! Waiting for user to proceed...`);
+            showStatus("info", `🔒 Certificate warning detected. Click "Advanced" → "Proceed" in the tab, then auto-login will continue.`);
+            if (btn) {
+              btn.textContent = "Waiting...";
+            }
+          }
+          // Don't settle - keep waiting for user to bypass the certificate warning
+          return;
+        }
+
+        // If we had a cert error but now we're past it
+        if (certErrorShown && !isCertError && currentUrl.startsWith("https://")) {
+          console.log(`[Auto-Login] Certificate accepted! URL is now valid HTTPS: ${currentUrl}`);
+          certErrorShown = false;
+          certJustAccepted = true;
+          showStatus("info", `✅ Certificate accepted. Waiting for page to load...`);
+          if (btn) {
+            btn.textContent = "Loading...";
+          }
+
+          // Force a retry after 2 seconds in case no more page updates come
+          setTimeout(() => {
+            if (!settled && certJustAccepted) {
+              console.log(`[Auto-Login] Forcing login attempt after cert acceptance timeout...`);
+              chrome.tabs.get(tabId, (tab) => {
+                if (chrome.runtime.lastError || !tab) return;
+
+                // Manually trigger login injection
+                if (tab.url && tab.url.startsWith("https://")) {
+                  certJustAccepted = false;
+                  if (btn) btn.textContent = "Logging in...";
+
+                  chrome.scripting.executeScript({
+                    target: { tabId },
+                    func: performLogin,
+                    args: [cluster.user, cluster.password]
+                  }).then((results) => {
+                    const result = results && results[0] && results[0].result;
+                    console.log(`[Auto-Login] Forced script result: ${result}`);
+                    if (result === "ok" || result === "submitted") {
+                      watchForSuccess(tabId, cluster, btn);
+                      settled = true;
+                      chrome.tabs.onUpdated.removeListener(listener);
+                    }
+                  }).catch((err) => {
+                    console.log(`[Auto-Login] Forced script injection failed: ${err.message || err}`);
+                  });
+                }
+              });
+            }
+          }, 2000);
+
+          // Don't inject script yet - wait for next page update cycle or timeout
+          return;
+        }
 
         // If we landed back on the console (login succeeded via SSO), done
         if (currentUrl.includes(extractDomain(cluster.url)) && !isLoginPage(currentUrl)) {
@@ -309,26 +378,43 @@ function waitForTabAndLogin(tabId, cluster, btn) {
         }
 
         // Inject login script into whatever page we're on (OAuth or console login)
-        if (!settled) {
+        if (!settled && !isCertError && currentUrl.startsWith("https://")) {
+          // If we just recovered from cert error, clear the flag
+          if (certJustAccepted) {
+            console.log(`[Auto-Login] Page loaded after cert acceptance, now attempting login...`);
+            certJustAccepted = false;
+            if (btn) {
+              btn.textContent = "Logging in...";
+            }
+          }
+          console.log(`[Auto-Login] Attempting to inject login script into ${currentUrl}...`);
           chrome.scripting.executeScript({
             target: { tabId },
             func: performLogin,
             args: [cluster.user, cluster.password]
           }).then((results) => {
             const result = results && results[0] && results[0].result;
+            console.log(`[Auto-Login] Script result: ${result}`);
             if (result === "no_form") {
               // No login form found — page is still redirecting, keep waiting
+              console.log(`[Auto-Login] No form found yet, will retry on next page update...`);
               return;
             }
             if (result === "ok" || result === "submitted") {
               // Form was submitted — now watch for the final redirect to console
+              console.log(`[Auto-Login] Login form submitted successfully!`);
               watchForSuccess(tabId, cluster, btn);
               settled = true;
               chrome.tabs.onUpdated.removeListener(listener);
             }
-          }).catch(() => {
+          }).catch((err) => {
             // Script injection failed (e.g. chrome:// page), keep waiting
+            console.log(`[Auto-Login] Script injection failed: ${err.message || err}`);
           });
+        } else if (!settled && isCertError) {
+          console.log(`[Auto-Login] Skipping login injection - still on cert error page`);
+        } else if (!settled && !currentUrl.startsWith("https://")) {
+          console.log(`[Auto-Login] Skipping login injection - URL not HTTPS yet: ${currentUrl}`);
         }
       });
     }, 800);
@@ -336,14 +422,21 @@ function waitForTabAndLogin(tabId, cluster, btn) {
 
   chrome.tabs.onUpdated.addListener(listener);
 
-  // Timeout after 30 seconds
+  // Timeout after 45 seconds (increased to account for cert warnings)
   setTimeout(() => {
     if (!settled) {
       chrome.tabs.onUpdated.removeListener(listener);
-      showStatus("error", "❌ Login timed out. Check credentials or cluster URL.");
+      console.log(`[Auto-Login] Timeout reached. certErrorShown: ${certErrorShown}, certJustAccepted: ${certJustAccepted}`);
+
+      if (certErrorShown) {
+        showStatus("error", "❌ Timed out waiting for certificate acceptance. Please click 'Proceed' in the tab.");
+      } else {
+        showStatus("error", "❌ Login timed out. Check credentials, cluster URL, or try again.");
+      }
+
       if (btn) { btn.disabled = false; btn.textContent = "Login"; }
     }
-  }, 30000);
+  }, 45000);
 }
 
 // ── Watch for successful redirect back to console ─────
@@ -378,6 +471,27 @@ function extractDomain(url) {
 
 function isLoginPage(url) {
   return url.includes("/login") || url.includes("oauth") || url.includes("inputUsername");
+}
+
+// ── Detect SSL certificate error pages ────────────────
+function isCertificateErrorPage(url, title) {
+  // Chrome error pages - these are the definitive indicators
+  if (url.startsWith("chrome-error://")) return true;
+  if (url.startsWith("about:neterror")) return true;
+
+  // If we have a regular HTTPS URL, it's not an error page
+  // (even if the title mentions certificate/privacy, the user has clicked "Proceed")
+  if (url.startsWith("https://") || url.startsWith("http://")) return false;
+
+  // Check page title for certificate/privacy errors (only if URL is suspicious)
+  const lowerTitle = (title || "").toLowerCase();
+  const errorKeywords = [
+    "privacy error",
+    "not private",
+    "your connection is not private"
+  ];
+
+  return errorKeywords.some(keyword => lowerTitle.includes(keyword));
 }
 
 // ── Injected login script (runs inside the OAuth/login tab) ──
@@ -489,15 +603,99 @@ function escapeHtml(str) {
 }
 
 // ── Add cluster form ──────────────────────────────────
+// Save form state to preserve data when switching tabs or popup closes
+function saveFormState() {
+  const formState = {
+    isOpen: document.getElementById("add-form").style.display === "block",
+    name: document.getElementById("f-name").value,
+    url: document.getElementById("f-url").value,
+    user: document.getElementById("f-user").value,
+    password: document.getElementById("f-password").value,
+    role: document.getElementById("f-role").value,
+    group: document.getElementById("f-group").value,
+  };
+  chrome.storage.local.set({ formState });
+}
+
+// Restore form state when popup opens
+function restoreFormState() {
+  chrome.storage.local.get("formState", ({ formState }) => {
+    if (!formState) return;
+
+    // Restore field values
+    if (formState.name) document.getElementById("f-name").value = formState.name;
+    if (formState.url) document.getElementById("f-url").value = formState.url;
+    if (formState.user) document.getElementById("f-user").value = formState.user;
+    if (formState.password) document.getElementById("f-password").value = formState.password;
+    if (formState.role) document.getElementById("f-role").value = formState.role;
+    if (formState.group) document.getElementById("f-group").value = formState.group;
+
+    // Restore form visibility
+    if (formState.isOpen) {
+      document.getElementById("add-form").style.display = "block";
+      document.getElementById("add-btn").style.display = "none";
+    }
+  });
+}
+
+// Clear form state from storage
+function clearFormState() {
+  chrome.storage.local.remove("formState");
+}
+
+// Auto-save form state on input changes
+function setupFormAutosave() {
+  ["f-name", "f-url", "f-user", "f-password", "f-role", "f-group"].forEach(id => {
+    const field = document.getElementById(id);
+    field.addEventListener("input", saveFormState);
+    field.addEventListener("change", saveFormState);
+  });
+}
+
 document.getElementById("add-btn").addEventListener("click", () => {
   document.getElementById("add-form").style.display = "block";
   document.getElementById("add-btn").style.display  = "none";
+
+  // Set default username to "kubeadmin" if field is empty
+  const userField = document.getElementById("f-user");
+  if (!userField.value.trim()) {
+    userField.value = "kubeadmin";
+  }
+
   document.getElementById("f-name").focus();
+  saveFormState(); // Save that form is now open
 });
 
 document.getElementById("cancel-btn").addEventListener("click", () => {
   document.getElementById("add-form").style.display = "none";
   document.getElementById("add-btn").style.display  = "block";
+  // Clear form fields
+  ["f-name","f-url","f-user","f-password","f-role","f-group"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    else el.value = "";
+  });
+  clearFormState(); // Clear saved state
+});
+
+// ── Test Connection Button ────────────────────────────
+document.getElementById("test-connection-btn").addEventListener("click", () => {
+  const url = document.getElementById("f-url").value.trim();
+
+  if (!url) {
+    showStatus("error", "❌ Please enter a Console URL first");
+    return;
+  }
+
+  if (!url.startsWith("http")) {
+    showStatus("error", "❌ URL must start with https:// or http://");
+    return;
+  }
+
+  showStatus("info", "🔗 Opening cluster URL in new tab. Accept the certificate if prompted, then close the tab and save your cluster.");
+
+  // Open URL in new tab so user can accept the certificate
+  chrome.tabs.create({ url: url, active: true });
 });
 
 document.getElementById("save-btn").addEventListener("click", () => {
@@ -531,6 +729,7 @@ document.getElementById("save-btn").addEventListener("click", () => {
         if (el.tagName === 'SELECT') el.selectedIndex = 0;
         else el.value = "";
       });
+      clearFormState(); // Clear saved state after successful save
       loadClusters();
       showStatus("success", `✅ ${name} added!`);
     });
@@ -748,6 +947,8 @@ function handleGroupDragEnd(e) {
 // ── Init ──────────────────────────────────────────────
 loadClusters();
 loadSettings();
+restoreFormState(); // Restore form data if user was adding a cluster
+setupFormAutosave(); // Auto-save form changes
 
 // ════════════════════════════════════════════════════════
 // IMPORT / EXPORT
