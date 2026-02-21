@@ -1,0 +1,153 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on tags like v2.2, v3.0, etc.
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 2.2 or v2.2)'
+        required: true
+        type: string
+      release_name:
+        description: 'Release name (optional, defaults to version)'
+        required: false
+        type: string
+      description:
+        description: 'Release description/notes'
+        required: false
+        type: string
+        default: 'See README for full feature list and usage instructions.'
+      prerelease:
+        description: 'Mark as pre-release?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine version and tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - use input version
+            INPUT_VERSION="${{ inputs.version }}"
+            # Remove 'v' prefix if present
+            VERSION=${INPUT_VERSION#v}
+            TAG="v${VERSION}"
+            echo "Manual trigger with version: $VERSION"
+          else
+            # Tag push trigger
+            VERSION=${GITHUB_REF#refs/tags/v}
+            TAG=${GITHUB_REF#refs/tags/}
+            echo "Tag push trigger with version: $VERSION"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          # Determine release name
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.release_name }}" ]; then
+            echo "release_name=${{ inputs.release_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "release_name=v${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify version matches manifest.json
+        run: |
+          MANIFEST_VERSION=$(grep -o '"version": "[^"]*"' manifest.json | cut -d'"' -f4)
+          TAG_VERSION="${{ steps.get_version.outputs.version }}"
+          echo "Manifest version: $MANIFEST_VERSION"
+          echo "Tag version: $TAG_VERSION"
+          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
+            echo "::warning::Version mismatch: manifest.json has $MANIFEST_VERSION but tag is $TAG_VERSION"
+          fi
+
+      - name: Package extension
+        run: |
+          zip -r openshift-autologin-v${{ steps.get_version.outputs.version }}.zip \
+            manifest.json \
+            background.js \
+            content.js \
+            popup.html \
+            popup.js \
+            icon*.png \
+            README.md
+
+          # List contents of the zip file
+          echo "Extension package contents:"
+          unzip -l openshift-autologin-v${{ steps.get_version.outputs.version }}.zip
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Start with header
+          cat > release_notes.md << 'HEADER'
+          ## 🔴 OpenShift Auto-Login v${{ steps.get_version.outputs.version }}
+
+          HEADER
+
+          # Add custom description if provided (manual trigger)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.description }}" ]; then
+            echo "${{ inputs.description }}" >> release_notes.md
+            echo "" >> release_notes.md
+            echo "---" >> release_notes.md
+            echo "" >> release_notes.md
+          fi
+
+          # Add installation instructions
+          cat >> release_notes.md << 'INSTALL'
+          ### 📦 Installation
+          1. Download `openshift-autologin-v${{ steps.get_version.outputs.version }}.zip`
+          2. Extract the zip file
+          3. Open Chrome and navigate to `chrome://extensions/`
+          4. Enable "Developer mode"
+          5. Click "Load unpacked" and select the extracted folder
+
+          INSTALL
+
+          # Add default what's changed section if no custom description
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] || [ -z "${{ inputs.description }}" ]; then
+            cat >> release_notes.md << 'WHATS_CHANGED'
+
+          ### What's Changed
+          See the [README](https://github.com/${{ github.repository }}/blob/${{ steps.get_version.outputs.tag }}/README.md) for full feature list and usage instructions.
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/commits/${{ steps.get_version.outputs.tag }}
+          WHATS_CHANGED
+          fi
+
+          echo "Release notes generated:"
+          cat release_notes.md
+
+      - name: Create or update git tag (manual trigger only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f ${{ steps.get_version.outputs.tag }} -m "Release ${{ steps.get_version.outputs.tag }}"
+          git push origin ${{ steps.get_version.outputs.tag }} --force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag }}
+          name: ${{ steps.get_version.outputs.release_name }}
+          body_path: release_notes.md
+          files: |
+            openshift-autologin-v${{ steps.get_version.outputs.version }}.zip
+          draft: false
+          prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
