@@ -56,7 +56,7 @@ This extension is not on the Chrome Web Store — install it via **Developer Mod
 
 1. Clone or download this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/openshift-autologin.git
+   git clone https://github.com/prsurve/openshift-autologin.git
    ```
 
 2. Open Chrome and go to:
