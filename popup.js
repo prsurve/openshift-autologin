@@ -278,6 +278,23 @@ function waitForTabAndLogin(tabId, cluster, btn) {
   let certErrorShown = false;
   let certJustAccepted = false;
 
+  // Store the source cluster URL in the tab's sessionStorage for OAuth redirect tracking
+  // This helps the content script match the correct cluster when OAuth strips nested domains
+  chrome.scripting.executeScript({
+    target: { tabId },
+    func: (clusterUrl) => {
+      try {
+        sessionStorage.setItem("os-autologin-source", clusterUrl);
+        console.log("[Auto-Login] Set source cluster URL:", clusterUrl);
+      } catch (e) {
+        // Ignore errors (e.g., if page isn't loaded yet)
+      }
+    },
+    args: [cluster.url]
+  }).catch(() => {
+    // Ignore errors - we'll try to set it again when the page loads
+  });
+
   const listener = (id, info, tab) => {
     if (id !== tabId) return;
 
@@ -342,6 +359,17 @@ function waitForTabAndLogin(tabId, cluster, btn) {
                   certJustAccepted = false;
                   if (btn) btn.textContent = "Logging in...";
 
+                  // Set source cluster URL before login attempt
+                  chrome.scripting.executeScript({
+                    target: { tabId },
+                    func: (clusterUrl) => {
+                      try {
+                        sessionStorage.setItem("os-autologin-source", clusterUrl);
+                      } catch (e) { /* ignore */ }
+                    },
+                    args: [cluster.url]
+                  }).catch(() => {});
+
                   chrome.scripting.executeScript({
                     target: { tabId },
                     func: performLogin,
@@ -371,6 +399,17 @@ function waitForTabAndLogin(tabId, cluster, btn) {
           if (!settled) {
             settled = true;
             chrome.tabs.onUpdated.removeListener(listener);
+
+            // Clear source cluster URL from sessionStorage
+            chrome.scripting.executeScript({
+              target: { tabId },
+              func: () => {
+                try {
+                  sessionStorage.removeItem("os-autologin-source");
+                } catch (e) { /* ignore */ }
+              }
+            }).catch(() => {});
+
             showStatus("success", `✅ Logged into ${cluster.name}!`);
             if (btn) { btn.disabled = false; btn.textContent = "Login"; }
           }
@@ -388,6 +427,19 @@ function waitForTabAndLogin(tabId, cluster, btn) {
             }
           }
           console.log(`[Auto-Login] Attempting to inject login script into ${currentUrl}...`);
+
+          // Re-set the source cluster URL in sessionStorage before attempting login
+          // This ensures it's available even after redirects
+          chrome.scripting.executeScript({
+            target: { tabId },
+            func: (clusterUrl) => {
+              try {
+                sessionStorage.setItem("os-autologin-source", clusterUrl);
+              } catch (e) { /* ignore */ }
+            },
+            args: [cluster.url]
+          }).catch(() => {});
+
           chrome.scripting.executeScript({
             target: { tabId },
             func: performLogin,
@@ -447,12 +499,35 @@ function watchForSuccess(tabId, cluster, btn) {
     const url = tab.url || "";
     if (url.includes(domain) && !isLoginPage(url)) {
       chrome.tabs.onUpdated.removeListener(successListener);
+
+      // Clear the source cluster URL from sessionStorage after successful login
+      chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          try {
+            sessionStorage.removeItem("os-autologin-source");
+            console.log("[Auto-Login] Cleared source cluster URL after successful login");
+          } catch (e) { /* ignore */ }
+        }
+      }).catch(() => {});
+
       showStatus("success", `✅ Logged into ${cluster.name}!`);
       if (btn) { btn.disabled = false; btn.textContent = "Login"; }
     }
     // If redirected to an error page
     if (url.includes("login") && url.includes("error")) {
       chrome.tabs.onUpdated.removeListener(successListener);
+
+      // Clear source cluster URL on error too
+      chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          try {
+            sessionStorage.removeItem("os-autologin-source");
+          } catch (e) { /* ignore */ }
+        }
+      }).catch(() => {});
+
       showStatus("error", `❌ Login failed — wrong credentials?`);
       if (btn) { btn.disabled = false; btn.textContent = "Login"; }
     }
