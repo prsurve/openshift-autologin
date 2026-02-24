@@ -139,6 +139,12 @@
 
     .cluster-actions { display: flex; align-items: center; gap: 4px; }
 
+    /* Login button with tooltip wrapper */
+    .login-btn-wrapper {
+      position: relative;
+      display: inline-block;
+    }
+
     .login-btn {
       background: #EE0000;
       color: white;
@@ -152,6 +158,97 @@
     }
     .login-btn:hover    { background: #cc0000; }
     .login-btn:disabled { background: #555; cursor: not-allowed; }
+
+    /* Tooltip for cluster login buttons */
+    .login-tooltip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      font-weight: normal;
+      text-align: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+      white-space: nowrap;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      pointer-events: none;
+      line-height: 1.4;
+    }
+    .login-tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+    }
+    .login-btn.has-tooltip:hover + .login-tooltip {
+      display: block;
+    }
+
+    /* Role-specific tooltip colors */
+    .login-tooltip-hub {
+      background: #3a1a6e;
+      color: #c084fc;
+      border: 1px solid #7c3aed;
+    }
+    .login-tooltip-hub::after {
+      border-top-color: #7c3aed;
+    }
+
+    .login-tooltip-hub-passive {
+      background: #1a2a4e;
+      color: #93c5fd;
+      border: 1px solid #3b82f6;
+    }
+    .login-tooltip-hub-passive::after {
+      border-top-color: #3b82f6;
+    }
+
+    .login-tooltip-primary {
+      background: #1a3a2a;
+      color: #6ee7b7;
+      border: 1px solid #10b981;
+    }
+    .login-tooltip-primary::after {
+      border-top-color: #10b981;
+    }
+
+    .login-tooltip-secondary {
+      background: #2a2a1a;
+      color: #fde68a;
+      border: 1px solid #f59e0b;
+    }
+    .login-tooltip-secondary::after {
+      border-top-color: #f59e0b;
+    }
+
+    .menu-btn {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      padding: 4px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .menu-btn:hover { color: #90b8f0; background: #1a2a3a; }
+
+    .edit-btn {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+    .edit-btn:hover { color: #64b5f6; background: #1a2a3a; }
 
     .delete-btn {
       background: none;
@@ -433,8 +530,29 @@
       cursor: pointer;
       user-select: none;
       transition: background 0.15s;
+      position: relative;
     }
     .group-header:hover { background: #162444; }
+    .group-header.drag-over {
+      background: #1a3a6e;
+      border: 2px dashed #EE0000;
+    }
+    .group-header.drag-over::after {
+      content: "Drop here to move to this group";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(238, 0, 0, 0.9);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: bold;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 10;
+    }
 
     .group-header-left { display: flex; align-items: center; gap: 10px; }
 
@@ -489,6 +607,55 @@
     /* Collapse animation */
     .group-body { max-height: 600px; overflow: hidden; transition: max-height 0.25s ease; }
     .group-body.collapsed { max-height: 0; }
+
+    /* ── Context Menu ── */
+    .context-menu {
+      background: #0d0d1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      min-width: 180px;
+      overflow: hidden;
+    }
+    .context-menu-header {
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #666;
+      padding: 8px 12px 6px;
+      letter-spacing: 0.5px;
+    }
+    .context-menu-item {
+      padding: 8px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #eee;
+      transition: background 0.15s;
+    }
+    .context-menu-item:hover {
+      background: #1a2a3a;
+    }
+    .context-menu-divider {
+      height: 1px;
+      background: #222;
+      margin: 4px 0;
+    }
+
+    /* ── Group Badge in cluster meta ── */
+    .group-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 9px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: #1a2a4a;
+      color: #4a7ab5;
+      border: 1px solid #2a3a6a;
+      white-space: nowrap;
+    }
 
   </style>
 </head>

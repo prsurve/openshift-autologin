@@ -45,6 +45,18 @@ document.querySelectorAll(".tab").forEach(tab => {
   });
 });
 
+// ── Get login tooltip based on cluster role ──────────
+function getLoginTooltip(role) {
+  const tooltips = {
+    "hub": '<div class="login-tooltip login-tooltip-hub">🟣 Active ACM Hub<br/>Manages all spoke clusters</div>',
+    "hub-passive": '<div class="login-tooltip login-tooltip-hub-passive">🔵 Passive Hub (DR)<br/>Standby ACM Hub for disaster recovery</div>',
+    "primary": '<div class="login-tooltip login-tooltip-primary">🟢 Primary Cluster (C1)<br/>Active production cluster</div>',
+    "secondary": '<div class="login-tooltip login-tooltip-secondary">🟡 Secondary Cluster (C2)<br/>DR standby - may be read-only</div>',
+    "unknown": ''
+  };
+  return tooltips[role.key] || '';
+}
+
 // ── Group clusters by explicit "group" field (Jenkins job ID) ─
 // Clusters with the same group value form one RDR group.
 // Clusters with no group field are rendered individually.
@@ -75,6 +87,16 @@ function renderClusterCard(cluster, index, clusters) {
   div.setAttribute("draggable", "true");
   div.dataset.index = index;
   const role = detectRole(cluster);
+
+  // Get list of all unique groups from clusters
+  const allGroups = [...new Set(clusters.map(c => c.group).filter(Boolean))].sort();
+
+  // Build group badge HTML
+  let groupBadgeHTML = '';
+  if (cluster.group) {
+    groupBadgeHTML = `<span class="group-badge" title="Group: ${escapeHtml(cluster.group)}">📦 ${escapeHtml(cluster.group)}</span>`;
+  }
+
   div.innerHTML = `
     <span class="drag-handle" style="cursor:grab;color:#666;margin-right:8px;font-size:12px;" title="Drag to reorder">⋮⋮</span>
     <input type="checkbox" class="cluster-checkbox" data-index="${index}" />
@@ -90,10 +112,16 @@ function renderClusterCard(cluster, index, clusters) {
             <div style="margin-top:6px;color:#666;font-size:10px;">${escapeHtml(cluster.url)}</div>
           </div>
         </div>
+        ${groupBadgeHTML}
       </div>
     </div>
     <div class="cluster-actions">
-      <button class="login-btn" data-index="${index}">Login</button>
+      <div class="login-btn-wrapper">
+        <button class="login-btn ${role.key !== 'unknown' ? 'has-tooltip' : ''}" data-index="${index}">Login</button>
+        ${getLoginTooltip(role)}
+      </div>
+      <button class="menu-btn" data-index="${index}" title="More actions">⋮</button>
+      <button class="edit-btn" data-index="${index}" title="Edit cluster">✏️</button>
       <button class="delete-btn" data-index="${index}" title="Remove cluster">✕</button>
     </div>
   `;
@@ -108,6 +136,14 @@ function renderClusterCard(cluster, index, clusters) {
     loginToCluster(cluster, btn);
   });
 
+  div.querySelector(".menu-btn").addEventListener("click", (e) => {
+    showMoveToGroupMenu(e.currentTarget, cluster, index, clusters, allGroups);
+  });
+
+  div.querySelector(".edit-btn").addEventListener("click", () => {
+    editCluster(index, cluster, clusters);
+  });
+
   div.querySelector(".delete-btn").addEventListener("click", () => {
     clusters.splice(index, 1);
     chrome.storage.local.set({ clusters }, loadClusters);
@@ -120,6 +156,190 @@ function renderClusterCard(cluster, index, clusters) {
   div.addEventListener("dragend", handleDragEnd);
 
   return div;
+}
+
+// ── Show Move to Group menu ──────────────────────────
+function showMoveToGroupMenu(button, cluster, index, clusters, allGroups) {
+  // Remove any existing menu
+  const existingMenu = document.getElementById("move-menu");
+  if (existingMenu) existingMenu.remove();
+
+  // Create menu
+  const menu = document.createElement("div");
+  menu.id = "move-menu";
+  menu.className = "context-menu";
+
+  let menuHTML = '<div class="context-menu-header">Move to Group</div>';
+
+  // Add "Remove from group" option if cluster is in a group
+  if (cluster.group) {
+    menuHTML += `<div class="context-menu-item" data-action="remove-group">🚫 Remove from Group</div>`;
+  }
+
+  // Add existing groups
+  if (allGroups.length > 0) {
+    allGroups.forEach(groupName => {
+      if (groupName !== cluster.group) {
+        menuHTML += `<div class="context-menu-item" data-group="${escapeHtml(groupName)}">📦 ${escapeHtml(groupName)}</div>`;
+      }
+    });
+  }
+
+  // Add "Create new group" option
+  menuHTML += '<div class="context-menu-divider"></div>';
+  menuHTML += '<div class="context-menu-item" data-action="new-group">➕ Create New Group</div>';
+
+  menu.innerHTML = menuHTML;
+  document.body.appendChild(menu);
+
+  // Position menu near the button
+  const rect = button.getBoundingClientRect();
+  menu.style.position = "fixed";
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.right = `${window.innerWidth - rect.right}px`;
+  menu.style.zIndex = "10000";
+
+  // Handle clicks
+  menu.querySelectorAll(".context-menu-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const action = item.dataset.action;
+      const groupName = item.dataset.group;
+
+      if (action === "remove-group") {
+        // Remove from group
+        delete clusters[index].group;
+        chrome.storage.local.set({ clusters }, () => {
+          loadClusters();
+          showStatus("success", `✅ ${cluster.name} removed from group`);
+        });
+      } else if (action === "new-group") {
+        // Prompt for new group name
+        const newGroupName = prompt("Enter new group name:", "");
+        if (newGroupName && newGroupName.trim()) {
+          clusters[index].group = newGroupName.trim();
+          chrome.storage.local.set({ clusters }, () => {
+            loadClusters();
+            showStatus("success", `✅ ${cluster.name} moved to group "${newGroupName.trim()}"`);
+          });
+        }
+      } else if (groupName) {
+        // Move to existing group
+        clusters[index].group = groupName;
+        chrome.storage.local.set({ clusters }, () => {
+          loadClusters();
+          showStatus("success", `✅ ${cluster.name} moved to group "${groupName}"`);
+        });
+      }
+
+      menu.remove();
+    });
+  });
+
+  // Close menu when clicking outside
+  setTimeout(() => {
+    const closeHandler = (e) => {
+      if (!menu.contains(e.target) && e.target !== button) {
+        menu.remove();
+        document.removeEventListener("click", closeHandler);
+      }
+    };
+    document.addEventListener("click", closeHandler);
+  }, 0);
+}
+
+// ── Edit cluster ──────────────────────────────────────
+function editCluster(index, cluster, clusters) {
+  // Hide add form if open
+  document.getElementById("add-form").style.display = "none";
+  document.getElementById("add-btn").style.display = "none";
+
+  // Create or show edit form
+  let editForm = document.getElementById("edit-form");
+  if (!editForm) {
+    editForm = document.createElement("div");
+    editForm.id = "edit-form";
+    editForm.className = "form";
+    editForm.innerHTML = `
+      <div style="font-size:13px;font-weight:bold;margin-bottom:12px;color:#90b8f0;">✏️ Edit Cluster</div>
+      <label>Cluster Name</label>
+      <input type="text" id="e-name" placeholder="e.g. Dev / Staging / Prod" />
+      <label>Console URL</label>
+      <input type="url" id="e-url" placeholder="https://console-openshift-console.apps..." />
+      <label>Username</label>
+      <input type="text" id="e-user" placeholder="kubeadmin" autocomplete="off" />
+      <label>Password</label>
+      <input type="password" id="e-password" placeholder="••••••••" autocomplete="off" />
+      <label>Role (optional)</label>
+      <select id="e-role" style="width:100%;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:12px;margin-bottom:10px;">
+        <option value="">Auto-detect</option>
+        <option value="hub">Active Hub</option>
+        <option value="hub-passive">Passive Hub</option>
+        <option value="primary">Primary C1</option>
+        <option value="secondary">Secondary C2</option>
+      </select>
+      <label>Group / Jenkins Job ID (optional)</label>
+      <input type="text" id="e-group" placeholder="e.g. jenkins-job-123 or RDR-Group-1" />
+      <div class="form-btns">
+        <button class="save-btn" id="edit-save-btn">Save Changes</button>
+        <button class="cancel-btn" id="edit-cancel-btn">Cancel</button>
+      </div>
+    `;
+    document.getElementById("cluster-list").parentNode.appendChild(editForm);
+  }
+
+  // Pre-fill form with existing values
+  document.getElementById("e-name").value = cluster.name || "";
+  document.getElementById("e-url").value = cluster.url || "";
+  document.getElementById("e-user").value = cluster.user || "";
+  document.getElementById("e-password").value = cluster.password || "";
+  document.getElementById("e-role").value = cluster.role || "";
+  document.getElementById("e-group").value = cluster.group || "";
+
+  editForm.style.display = "block";
+
+  // Scroll to form
+  editForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  // Save handler
+  const saveBtn = document.getElementById("edit-save-btn");
+  saveBtn.replaceWith(saveBtn.cloneNode(true)); // Remove old event listeners
+  document.getElementById("edit-save-btn").addEventListener("click", () => {
+    const name = document.getElementById("e-name").value.trim();
+    const url = document.getElementById("e-url").value.trim();
+    const user = document.getElementById("e-user").value.trim();
+    const password = document.getElementById("e-password").value;
+    const role = document.getElementById("e-role").value.trim();
+    const group = document.getElementById("e-group").value.trim();
+
+    if (!name || !url || !user || !password) {
+      showStatus("error", "❌ All fields are required");
+      return;
+    }
+    if (!url.startsWith("http")) {
+      showStatus("error", "❌ URL must start with https://");
+      return;
+    }
+
+    // Update cluster
+    clusters[index] = { name, url, user, password };
+    if (role) clusters[index].role = role;
+    if (group) clusters[index].group = group;
+
+    chrome.storage.local.set({ clusters }, () => {
+      editForm.style.display = "none";
+      document.getElementById("add-btn").style.display = "block";
+      loadClusters();
+      showStatus("success", `✅ ${name} updated!`);
+    });
+  });
+
+  // Cancel handler
+  const cancelBtn = document.getElementById("edit-cancel-btn");
+  cancelBtn.replaceWith(cancelBtn.cloneNode(true)); // Remove old event listeners
+  document.getElementById("edit-cancel-btn").addEventListener("click", () => {
+    editForm.style.display = "none";
+    document.getElementById("add-btn").style.display = "block";
+  });
 }
 
 // ── Load and render clusters with grouping ────────────
@@ -184,6 +404,43 @@ function loadClusters() {
         if (e.target.closest(".login-all-btn")) return; // don't toggle when clicking Login All
         const collapsed = body.classList.toggle("collapsed");
         header.querySelector(".group-chevron").textContent = collapsed ? "▶" : "▼";
+      });
+
+      // Allow dropping clusters onto group header to move them to this group
+      header.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (draggedElement && draggedElement.classList.contains("cluster-item") && !draggedElement.closest(".cluster-group") !== groupDiv) {
+          header.classList.add("drag-over");
+        }
+      });
+
+      header.addEventListener("dragleave", (e) => {
+        if (e.target === header || header.contains(e.relatedTarget)) return;
+        header.classList.remove("drag-over");
+      });
+
+      header.addEventListener("drop", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        header.classList.remove("drag-over");
+
+        if (!draggedElement || !draggedElement.classList.contains("cluster-item")) return;
+
+        const droppedIndex = parseInt(draggedElement.dataset.index);
+        if (isNaN(droppedIndex)) return;
+
+        chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+          if (!clusters[droppedIndex]) return;
+
+          // Move cluster to this group
+          clusters[droppedIndex].group = group.groupId;
+
+          chrome.storage.local.set({ clusters }, () => {
+            loadClusters();
+            showStatus("success", `✅ Moved to group "${group.groupId}"`);
+          });
+        });
       });
 
       // Login All — login to every cluster in the group
@@ -913,6 +1170,12 @@ function handleDragOver(e) {
   if (target !== draggedElement && target.classList.contains("cluster-item")) {
     target.classList.add("drag-over");
   }
+
+  // Allow dropping on group headers
+  const groupHeader = e.target.closest(".group-header");
+  if (groupHeader && draggedElement && draggedElement.classList.contains("cluster-item")) {
+    groupHeader.classList.add("drag-over");
+  }
 }
 
 function handleDrop(e) {
@@ -936,6 +1199,9 @@ function handleDrop(e) {
 function handleDragEnd(e) {
   e.currentTarget.classList.remove("dragging");
   document.querySelectorAll(".cluster-item").forEach(el => el.classList.remove("drag-over"));
+  document.querySelectorAll(".group-header").forEach(el => el.classList.remove("drag-over"));
+  draggedElement = null;
+  draggedIndex = null;
 }
 
 // ── Drag and Drop for Groups ──────────────────────────
