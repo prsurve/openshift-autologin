@@ -1,3 +1,92 @@
+// ══════════════════════════════════════════════════════════════════
+// CORS-FREE FETCH using background service worker
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * Make a CORS-free fetch request via the background service worker
+ * Chrome extensions can bypass CORS when using host_permissions + background worker
+ *
+ * @param {string} url - The URL to fetch
+ * @param {object} options - Fetch options (headers, method, etc.)
+ * @returns {Promise<Response>} - A Response-like object
+ */
+async function corsFetch(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      {
+        action: 'corsFetch',
+        url: url,
+        options: options
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+
+        if (response.error) {
+          reject(new Error(response.error));
+          return;
+        }
+
+        // Create a Response-like object
+        const mockResponse = {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+          headers: new Headers(response.headers),
+          text: async () => response.text,
+          json: async () => JSON.parse(response.text)
+        };
+
+        resolve(mockResponse);
+      }
+    );
+  });
+}
+
+// ── Format relative time ──
+function formatRelativeTime(timestamp) {
+  if (!timestamp) return null;
+
+  const now = Date.now();
+  const diff = now - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 60) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
+// ── Get color for group ──
+function getGroupColor(groupName) {
+  const colors = [
+    { bg: '#1a3a6e', text: '#90b8f0', border: '#2a4a8e' }, // Blue
+    { bg: '#3a1a6e', text: '#c084fc', border: '#7c3aed' }, // Purple
+    { bg: '#1a3a2a', text: '#6ee7b7', border: '#10b981' }, // Green
+    { bg: '#2a2a1a', text: '#fde68a', border: '#f59e0b' }, // Yellow
+    { bg: '#3a1a1a', text: '#fca5a5', border: '#ef4444' }, // Red
+    { bg: '#1a2a3a', text: '#93c5fd', border: '#3b82f6' }, // Light Blue
+    { bg: '#2a1a3a', text: '#dda6f5', border: '#a855f7' }, // Pink
+    { bg: '#1a2a1a', text: '#86efac', border: '#22c55e' }, // Lime
+  ];
+
+  // Simple hash function
+  let hash = 0;
+  for (let i = 0; i < groupName.length; i++) {
+    hash = ((hash << 5) - hash) + groupName.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+
+  return colors[Math.abs(hash) % colors.length];
+}
+
 // ── Detect cluster role from name, URL, or explicit role field ──
 function detectRole(cluster) {
   // If the imported file already has a role field (set by the download script), use it directly
@@ -94,14 +183,41 @@ function renderClusterCard(cluster, index, clusters) {
   // Build group badge HTML
   let groupBadgeHTML = '';
   if (cluster.group) {
-    groupBadgeHTML = `<span class="group-badge" title="Group: ${escapeHtml(cluster.group)}">📦 ${escapeHtml(cluster.group)}</span>`;
+    const groupColor = getGroupColor(cluster.group);
+    groupBadgeHTML = `<span class="group-badge" style="background:${groupColor.bg};color:${groupColor.text};border-color:${groupColor.border};" title="Group: ${escapeHtml(cluster.group)}">📦 ${escapeHtml(cluster.group)}</span>`;
   }
+
+  // Build last login HTML
+  let lastLoginHTML = '';
+  if (cluster.lastLogin) {
+    const relTime = formatRelativeTime(cluster.lastLogin);
+    lastLoginHTML = `<span style="font-size:9px;color:#555;margin-left:6px;" title="Last login: ${new Date(cluster.lastLogin).toLocaleString()}">🕐 ${relTime}</span>`;
+  }
+
+  // Build tags HTML
+  let tagsHTML = '';
+  if (cluster.tags && cluster.tags.length > 0) {
+    tagsHTML = cluster.tags.slice(0, 3).map(tag =>
+      `<span style="font-size:9px;padding:2px 5px;border-radius:8px;background:#2a2a3a;color:#888;border:1px solid #333;margin-left:4px;" title="Tag: ${escapeHtml(tag)}">#${escapeHtml(tag)}</span>`
+    ).join('');
+    if (cluster.tags.length > 3) {
+      tagsHTML += `<span style="font-size:9px;color:#666;margin-left:4px;">+${cluster.tags.length - 3}</span>`;
+    }
+  }
+
+  // Pin star icon
+  const pinIcon = cluster.pinned ? '⭐' : '☆';
+  const pinTitle = cluster.pinned ? 'Unpin from top' : 'Pin to top';
 
   div.innerHTML = `
     <span class="drag-handle" style="cursor:grab;color:#666;margin-right:8px;font-size:12px;" title="Drag to reorder">⋮⋮</span>
     <input type="checkbox" class="cluster-checkbox" data-index="${index}" />
+    <button class="pin-btn" data-index="${index}" title="${pinTitle}" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0 4px;margin-right:4px;color:${cluster.pinned ? '#f59e0b' : '#444'};">${pinIcon}</button>
     <div style="min-width:0;flex:1;">
-      <div class="cluster-name">${escapeHtml(cluster.name)}</div>
+      <div class="cluster-name">
+        ${escapeHtml(cluster.name)}
+        ${cluster.notes ? `<span style="font-size:10px;color:#666;margin-left:6px;" title="Notes: ${escapeHtml(cluster.notes)}">📝</span>` : ''}
+      </div>
       <div class="cluster-meta">
         <div class="cluster-url">${escapeHtml(cluster.url)}</div>
         <div class="tooltip-wrap">
@@ -113,6 +229,8 @@ function renderClusterCard(cluster, index, clusters) {
           </div>
         </div>
         ${groupBadgeHTML}
+        ${lastLoginHTML}
+        ${tagsHTML}
       </div>
     </div>
     <div class="cluster-actions">
@@ -128,6 +246,15 @@ function renderClusterCard(cluster, index, clusters) {
 
   // Checkbox event
   div.querySelector(".cluster-checkbox").addEventListener("change", updateBulkActionsBar);
+
+  // Pin button event
+  div.querySelector(".pin-btn").addEventListener("click", () => {
+    clusters[index].pinned = !clusters[index].pinned;
+    chrome.storage.local.set({ clusters }, () => {
+      loadClusters();
+      showStatus("success", clusters[index].pinned ? `⭐ ${cluster.name} pinned` : `✅ ${cluster.name} unpinned`);
+    });
+  });
 
   div.querySelector(".login-btn").addEventListener("click", (e) => {
     const btn = e.currentTarget;
@@ -279,6 +406,10 @@ function editCluster(index, cluster, clusters) {
       </select>
       <label>Group / Jenkins Job ID (optional)</label>
       <input type="text" id="e-group" placeholder="e.g. jenkins-job-123 or RDR-Group-1" />
+      <label>Tags (optional)</label>
+      <input type="text" id="e-tags" placeholder="production, important, test (comma-separated)" />
+      <label>Notes (optional)</label>
+      <textarea id="e-notes" placeholder="Add notes about this cluster..." style="width:100%;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:12px;margin-bottom:10px;resize:vertical;min-height:60px;"></textarea>
       <div class="form-btns">
         <button class="save-btn" id="edit-save-btn">Save Changes</button>
         <button class="cancel-btn" id="edit-cancel-btn">Cancel</button>
@@ -294,6 +425,8 @@ function editCluster(index, cluster, clusters) {
   document.getElementById("e-password").value = cluster.password || "";
   document.getElementById("e-role").value = cluster.role || "";
   document.getElementById("e-group").value = cluster.group || "";
+  document.getElementById("e-tags").value = (cluster.tags || []).join(", ");
+  document.getElementById("e-notes").value = cluster.notes || "";
 
   editForm.style.display = "block";
 
@@ -310,6 +443,8 @@ function editCluster(index, cluster, clusters) {
     const password = document.getElementById("e-password").value;
     const role = document.getElementById("e-role").value.trim();
     const group = document.getElementById("e-group").value.trim();
+    const tagsInput = document.getElementById("e-tags").value.trim();
+    const notes = document.getElementById("e-notes").value.trim();
 
     if (!name || !url || !user || !password) {
       showStatus("error", "❌ All fields are required");
@@ -320,10 +455,23 @@ function editCluster(index, cluster, clusters) {
       return;
     }
 
-    // Update cluster
-    clusters[index] = { name, url, user, password };
+    // Parse tags
+    const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+
+    // Update cluster (preserve existing fields like lastLogin, pinned)
+    clusters[index] = {
+      ...clusters[index],
+      name,
+      url,
+      user,
+      password
+    };
     if (role) clusters[index].role = role;
     if (group) clusters[index].group = group;
+    if (tags.length > 0) clusters[index].tags = tags;
+    else delete clusters[index].tags;
+    if (notes) clusters[index].notes = notes;
+    else delete clusters[index].notes;
 
     chrome.storage.local.set({ clusters }, () => {
       editForm.style.display = "none";
@@ -355,6 +503,15 @@ function loadClusters() {
 
     const groups = groupClusters(clusters);
 
+    // Sort groups: pinned clusters first within each group
+    groups.forEach(group => {
+      group.clusters.sort((a, b) => {
+        if (a.cluster.pinned && !b.cluster.pinned) return -1;
+        if (!a.cluster.pinned && b.cluster.pinned) return 1;
+        return 0;
+      });
+    });
+
     groups.forEach(group => {
       // Single cluster — no group wrapper needed
       if (group.clusters.length === 1) {
@@ -372,22 +529,25 @@ function loadClusters() {
       // Group label = Jenkins job ID
       const groupLabel = group.groupId || "RDR Group";
       const rolesSummary = group.clusters.map(({cluster}) => detectRole(cluster).icon).join(" ");
+      const groupColor = getGroupColor(groupLabel);
 
       // Header — click to expand/collapse, Login All button
       const header = document.createElement("div");
       header.className = "group-header";
+      header.style.background = groupColor.bg;
+      header.style.borderLeft = `4px solid ${groupColor.border}`;
       header.innerHTML = `
         <div class="group-header-left">
-          <span class="drag-handle" style="cursor:grab;color:#4a7ab5;margin-right:6px;font-size:14px;" title="Drag to reorder">⋮⋮</span>
-          <span class="group-chevron">▶</span>
+          <span class="drag-handle" style="cursor:grab;color:${groupColor.text};margin-right:6px;font-size:14px;" title="Drag to reorder">⋮⋮</span>
+          <span class="group-chevron" style="color:${groupColor.text};">▶</span>
           <div>
-            <div class="group-name">📦 ${escapeHtml(groupLabel)}</div>
-            <div class="group-meta">${group.clusters.length} clusters &nbsp;${rolesSummary}</div>
+            <div class="group-name" style="color:${groupColor.text};">📦 ${escapeHtml(groupLabel)}</div>
+            <div class="group-meta" style="color:${groupColor.text};">${group.clusters.length} clusters &nbsp;${rolesSummary}</div>
           </div>
         </div>
         <div class="group-actions">
-          <button class="login-all-btn" title="Login to all clusters in this group">⚡ Login All</button>
-          <span class="group-count">${group.clusters.length}</span>
+          <button class="login-all-btn" style="background:${groupColor.border};color:${groupColor.text};" title="Login to all clusters in this group">⚡ Login All</button>
+          <span class="group-count" style="background:${groupColor.bg};color:${groupColor.text};border-color:${groupColor.border};">${group.clusters.length}</span>
         </div>
       `;
 
@@ -508,6 +668,15 @@ function loadClusters() {
 // ── Login to cluster ──────────────────────────────────
 function loginToCluster(cluster, btn, forceNewTab = false) {
   showStatus("info", `Opening ${cluster.name}...`);
+
+  // Update last login timestamp
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
+    if (clusterIndex !== -1) {
+      clusters[clusterIndex].lastLogin = Date.now();
+      chrome.storage.local.set({ clusters });
+    }
+  });
 
   chrome.storage.local.get("settings", ({ settings = {} }) => {
     const openNewTab = forceNewTab || (settings.newTab !== false); // default true, or force if specified
@@ -1037,6 +1206,8 @@ document.getElementById("save-btn").addEventListener("click", () => {
   const password = document.getElementById("f-password").value;
   const role     = document.getElementById("f-role").value.trim();
   const group    = document.getElementById("f-group").value.trim();
+  const tagsInput = document.getElementById("f-tags").value.trim();
+  const notes    = document.getElementById("f-notes").value.trim();
 
   if (!name || !url || !user || !password) {
     showStatus("error", "❌ All fields are required");
@@ -1047,16 +1218,21 @@ document.getElementById("save-btn").addEventListener("click", () => {
     return;
   }
 
+  // Parse tags
+  const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+
   chrome.storage.local.get("clusters", ({ clusters = [] }) => {
     const newCluster = { name, url, user, password };
     if (role) newCluster.role = role;
     if (group) newCluster.group = group;
+    if (tags.length > 0) newCluster.tags = tags;
+    if (notes) newCluster.notes = notes;
 
     clusters.push(newCluster);
     chrome.storage.local.set({ clusters }, () => {
       document.getElementById("add-form").style.display = "none";
       document.getElementById("add-btn").style.display  = "block";
-      ["f-name","f-url","f-user","f-password","f-role","f-group"].forEach(id => {
+      ["f-name","f-url","f-user","f-password","f-role","f-group","f-tags","f-notes"].forEach(id => {
         const el = document.getElementById(id);
         if (el.tagName === 'SELECT') el.selectedIndex = 0;
         else el.value = "";
@@ -1069,6 +1245,16 @@ document.getElementById("save-btn").addEventListener("click", () => {
 });
 
 // ── Settings ──────────────────────────────────────────
+function applyPopupSize(size) {
+  const sizes = {
+    compact: '340px',
+    normal: '450px',
+    large: '600px',
+    xlarge: '750px'
+  };
+  document.body.style.width = sizes[size] || sizes.normal;
+}
+
 function loadSettings() {
   chrome.storage.local.get("settings", ({ settings = {} }) => {
     document.getElementById("toggle-auto").checked         = settings.autoLogin       || false;
@@ -1076,6 +1262,11 @@ function loadSettings() {
     document.getElementById("toggle-newtab").checked       = settings.newTab          !== false; // default true
     document.getElementById("toggle-background").checked   = settings.backgroundTabs  !== false; // default true
     document.getElementById("toggle-sequential").checked   = settings.sequentialTabs  || false;  // default false
+
+    // Load and apply popup size
+    const popupSize = settings.popupSize || 'normal';
+    document.getElementById("popup-size-select").value = popupSize;
+    applyPopupSize(popupSize);
   });
 }
 
@@ -1091,6 +1282,13 @@ document.getElementById("toggle-confirm").addEventListener("change",    e => sav
 document.getElementById("toggle-newtab").addEventListener("change",     e => saveSetting("newTab",         e.target.checked));
 document.getElementById("toggle-background").addEventListener("change", e => saveSetting("backgroundTabs", e.target.checked));
 document.getElementById("toggle-sequential").addEventListener("change", e => saveSetting("sequentialTabs", e.target.checked));
+
+// Popup size selector
+document.getElementById("popup-size-select").addEventListener("change", e => {
+  const size = e.target.value;
+  applyPopupSize(size);
+  saveSetting("popupSize", size);
+});
 
 // ── Search / Filter ───────────────────────────────────
 document.getElementById("search-clusters").addEventListener("input", (e) => {
@@ -1472,8 +1670,13 @@ function showPreview(clusters) {
   const list = document.getElementById("preview-list");
   list.style.display = "block";
   list.innerHTML = `
-    <div style="font-size:11px;color:#888;margin-bottom:6px;">
-      Found <b style="color:#eee;">${clusters.length}</b> cluster(s) — review before importing:
+    <div style="background:#1a3a6e;padding:10px 12px;border-radius:8px 8px 0 0;margin:-10px -12px 10px -12px;border-left:4px solid #EE0000;">
+      <div style="font-size:13px;font-weight:bold;color:#90b8f0;margin-bottom:2px;">
+        ✅ Found ${clusters.length} Cluster(s)
+      </div>
+      <div style="font-size:11px;color:#6a9abd;">
+        Review the clusters below and click Import to add them
+      </div>
     </div>
   `;
 
@@ -1503,7 +1706,18 @@ function showPreview(clusters) {
   confirmBtn.addEventListener("click", confirmImport);
   list.appendChild(confirmBtn);
 
-  showImportStatus("info", `📋 ${clusters.length} cluster(s) parsed. Click Import to save.`);
+  // Scroll to preview with smooth animation
+  setTimeout(() => {
+    list.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Add a brief highlight animation
+    list.style.animation = 'none';
+    setTimeout(() => {
+      list.style.animation = 'pulse 0.5s ease-in-out';
+    }, 10);
+  }, 100);
+
+  showImportStatus("success", `✅ Success! Found ${clusters.length} cluster(s). Review them below ⬇️`);
 }
 
 // ── Confirm and save clusters ─────────────────────────
@@ -1539,6 +1753,1405 @@ function confirmImport() {
     });
   });
 }
+
+// ── Auto-detect group name from Jenkins URL ──────────
+document.getElementById("jenkins-url").addEventListener("input", (e) => {
+  const url = e.target.value.trim();
+  const groupInput = document.getElementById("jenkins-group");
+
+  // Try to extract job ID from URL
+  const jobIdMatch = url.match(/\/job\/([^\/]+)\/(\d+)/);
+  if (jobIdMatch) {
+    const jobId = jobIdMatch[2];
+    groupInput.placeholder = `Auto-detected: ${jobId}`;
+  } else {
+    groupInput.placeholder = "e.g. RDR-Setup-4073 or My-Test-Group";
+  }
+});
+
+// ── Fetch clusters from Jenkins ──────────────────────
+document.getElementById("fetch-jenkins-btn").addEventListener("click", async () => {
+  const jenkinsUrl = document.getElementById("jenkins-url").value.trim();
+  const jenkinsUser = document.getElementById("jenkins-user").value.trim();
+  const jenkinsToken = document.getElementById("jenkins-token").value.trim();
+  const customGroupName = document.getElementById("jenkins-group").value.trim();
+  const debugMode = document.getElementById("jenkins-debug").checked;
+
+  // Clear previous debug output
+  const debugOutput = document.getElementById("jenkins-debug-output");
+  const debugText = debugOutput.querySelector("div");
+  debugText.textContent = "";
+  debugOutput.style.display = "none";
+
+  const debugLog = (msg) => {
+    if (debugMode) {
+      debugText.textContent += msg + "\n";
+      debugOutput.style.display = "block";
+    }
+    console.log(msg);
+  };
+
+  if (!jenkinsUrl) {
+    showImportStatus("error", "❌ Please enter a Jenkins job URL");
+    return;
+  }
+
+  const btn = document.getElementById("fetch-jenkins-btn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Fetching...";
+  showImportStatus("info", "🔄 Connecting to Jenkins...");
+
+  debugLog(`[Jenkins Import] Starting fetch from: ${jenkinsUrl}`);
+  debugLog(`[Jenkins Import] Debug mode: enabled`);
+  debugLog(`[Jenkins Import] Authentication: ${jenkinsUser ? 'provided' : 'none'}`);
+  debugLog("");
+
+  try {
+    // Normalize Jenkins URL
+    let baseUrl = jenkinsUrl.replace(/\/$/, "");
+
+    // Setup auth headers if credentials provided
+    const headers = {};
+    if (jenkinsUser && jenkinsToken) {
+      const auth = btoa(`${jenkinsUser}:${jenkinsToken}`);
+      headers['Authorization'] = `Basic ${auth}`;
+    }
+
+    let allClusters = [];
+
+    // Step 1: Fetch build info via Jenkins REST API (get ALL data to search for credentials)
+    showImportStatus("info", "📋 Fetching build information from REST API...");
+    // Request full JSON to search for credentials in all fields
+    const apiUrl = `${baseUrl}/api/json`;
+    debugLog(`[Step 1] Fetching full build info from: ${apiUrl}`);
+
+    try {
+      const apiResponse = await corsFetch(apiUrl, { headers });
+      debugLog(`[Step 1] Response status: ${apiResponse.status} ${apiResponse.statusText}`);
+
+      if (apiResponse.ok) {
+        const buildInfo = await apiResponse.json();
+        debugLog(`[Step 1] Build info received`);
+        debugLog(`[Step 1] Top-level fields: ${Object.keys(buildInfo).join(', ')}`);
+
+        // Step 1a: Extract credentials from build parameters and environment variables
+        if (buildInfo.actions && buildInfo.actions.length > 0) {
+          showImportStatus("info", "🔍 Extracting credentials from build parameters...");
+          debugLog(`[Step 1a] Checking ${buildInfo.actions.length} action(s) for parameters...`);
+
+          for (const action of buildInfo.actions) {
+            if (action.parameters && action.parameters.length > 0) {
+              debugLog(`[Step 1a] Found ${action.parameters.length} build parameter(s):`);
+
+              // Convert parameters to key-value format
+              const params = {};
+              for (const param of action.parameters) {
+                if (param.name && param.value !== undefined && param.value !== null) {
+                  const valueStr = String(param.value);
+                  params[param.name] = valueStr;
+
+                  // Only show first 100 chars in debug to avoid clutter
+                  const displayValue = valueStr.length > 100 ? valueStr.substring(0, 100) + '...' : valueStr;
+                  debugLog(`  - ${param.name} = ${displayValue}`);
+                }
+              }
+
+              // Parse parameters for cluster credentials (using same logic as env-vars pattern)
+              const paramClusters = parseJenkinsParameters(params, jenkinsUrl, debugLog);
+              if (paramClusters.length > 0) {
+                debugLog(`[Step 1a] ✅ Found ${paramClusters.length} cluster(s) from build parameters`);
+                allClusters.push(...paramClusters);
+              } else {
+                debugLog(`[Step 1a] ⚠️ No cluster credentials found in build parameters`);
+              }
+            }
+          }
+        }
+
+        debugLog("");
+
+        // Step 1a-2: Search through ALL actions for environment variables or credentials
+        debugLog(`[Step 1a-2] Deep searching all ${buildInfo.actions.length} actions for credentials...`);
+        debugLog(`[Step 1a-2] Action types found: ${buildInfo.actions.map(a => a._class || 'unknown').join(', ')}`);
+        for (const action of buildInfo.actions) {
+          // Check if this action has environment variables
+          if (action._class && action._class.includes('EnvAction')) {
+            debugLog(`[Step 1a-2] Found EnvAction! Examining...`);
+            // Search for any field that might contain environment variables
+            for (const key of Object.keys(action)) {
+              if (key !== '_class' && typeof action[key] === 'object') {
+                debugLog(`[Step 1a-2] Found object field: ${key}, type: ${typeof action[key]}`);
+                if (action[key] && typeof action[key] === 'object') {
+                  const envVars = action[key];
+                  debugLog(`[Step 1a-2] Parsing ${Object.keys(envVars).length} environment variables...`);
+
+                  const envClusters = parseJenkinsParameters(envVars, jenkinsUrl, debugLog);
+                  if (envClusters.length > 0) {
+                    debugLog(`[Step 1a-2] ✅ Found ${envClusters.length} cluster(s) from environment variables`);
+                    allClusters.push(...envClusters);
+                  }
+                }
+              }
+            }
+          }
+
+          // Also check for any fields containing "environment", "env", "variables", etc.
+          for (const key of Object.keys(action)) {
+            const keyLower = key.toLowerCase();
+            if ((keyLower.includes('env') || keyLower.includes('variable')) &&
+                action[key] && typeof action[key] === 'object' &&
+                !Array.isArray(action[key])) {
+              debugLog(`[Step 1a-2] Found potential env field: ${key}`);
+              const envClusters = parseJenkinsParameters(action[key], jenkinsUrl, debugLog);
+              if (envClusters.length > 0) {
+                debugLog(`[Step 1a-2] ✅ Found ${envClusters.length} cluster(s) from ${key}`);
+                allClusters.push(...envClusters);
+              }
+            }
+          }
+        }
+
+        debugLog("");
+
+        // Step 1b: Try to fetch environment variables which often contain the actual credentials
+        showImportStatus("info", "🔍 Fetching environment variables from Jenkins...");
+        const envUrl = `${baseUrl}/injectedEnvVars/api/json`;
+        debugLog(`[Step 1b] Fetching environment variables from: ${envUrl}`);
+
+        try {
+          const envResponse = await corsFetch(envUrl, { headers });
+          debugLog(`[Step 1b] Response status: ${envResponse.status} ${envResponse.statusText}`);
+
+          if (envResponse.ok) {
+            const envData = await envResponse.json();
+            if (envData.envMap) {
+              debugLog(`[Step 1b] Found ${Object.keys(envData.envMap).length} environment variable(s)`);
+
+              // Parse environment variables for cluster credentials
+              const envClusters = parseJenkinsParameters(envData.envMap, jenkinsUrl, debugLog);
+              if (envClusters.length > 0) {
+                debugLog(`[Step 1b] ✅ Found ${envClusters.length} cluster(s) from environment variables`);
+                allClusters.push(...envClusters);
+              } else {
+                debugLog(`[Step 1b] ⚠️ No cluster credentials found in environment variables`);
+              }
+            } else {
+              debugLog(`[Step 1b] ⚠️ No envMap found in response`);
+            }
+          } else {
+            debugLog(`[Step 1b] ⚠️ Failed to fetch environment variables (HTTP ${envResponse.status})`);
+            debugLog(`[Step 1b] This is normal for some Jenkins configurations`);
+          }
+        } catch (e) {
+          debugLog(`[Step 1b] ⚠️ Could not fetch environment variables: ${e.message}`);
+          debugLog(`[Step 1b] This is normal - not all Jenkins jobs expose environment variables`);
+        }
+
+        debugLog("");
+
+        // Step 1c: Parse build description for kubeconfig download paths (like the bash script does)
+        if (buildInfo.description) {
+          showImportStatus("info", "🔍 Parsing build description for credentials...");
+          debugLog(`[Step 1c] Found build description (${buildInfo.description.length} chars)`);
+
+          // Show sample of description for debugging
+          const descriptionText = buildInfo.description
+            .replace(/<[^>]+>/g, ' ')  // Strip HTML tags
+            .replace(/\s+/g, ' ')       // Normalize whitespace
+            .trim();
+          debugLog(`[Step 1c] Description preview (first 500 chars):`);
+          debugLog(`  ${descriptionText.substring(0, 500)}...`);
+          debugLog(``);
+
+          // Parse HTML description to find kubeconfig paths
+          debugLog(`[Step 1c] Extracting kubeconfig download paths...`);
+          const kubeconfigPaths = extractKubeconfigPaths(buildInfo.description, debugLog);
+
+          if (kubeconfigPaths.length > 0) {
+            debugLog(`[Step 1c] Found ${kubeconfigPaths.length} kubeconfig path(s)`);
+
+            // Get cluster names and types from CLUSTERS_CONFIGURATION if available
+            let clusterNames = [];
+            let clusterRoles = [];
+
+            // Extract from params if we have them
+            if (buildInfo.actions) {
+              for (const action of buildInfo.actions) {
+                if (action.parameters) {
+                  for (const param of action.parameters) {
+                    if (param.name === 'CLUSTERS_CONFIGURATION' && param.value) {
+                      try {
+                        let configStr = String(param.value).trim();
+                        if ((configStr.startsWith('"') && configStr.endsWith('"')) ||
+                            (configStr.startsWith("'") && configStr.endsWith("'"))) {
+                          configStr = configStr.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'");
+                        }
+                        const clustersConfig = JSON.parse(configStr);
+
+                        for (const cluster of clustersConfig) {
+                          clusterNames.push(cluster.CLUSTER_NAME || `cluster-${clusterNames.length}`);
+
+                          // Map cluster type to role
+                          const clusterType = cluster.CLUSTER_TYPE || '';
+                          const typeMap = {
+                            'Active ACM': 'hub',
+                            'Passive ACM': 'hub-passive',
+                            'Primary': 'primary',
+                            'Secondary': 'secondary',
+                            'C1': 'primary',
+                            'C2': 'secondary'
+                          };
+                          clusterRoles.push(typeMap[clusterType] || 'unknown');
+                        }
+
+                        debugLog(`[Step 1c] Extracted ${clusterNames.length} cluster names from CLUSTERS_CONFIGURATION`);
+                        for (let i = 0; i < clusterNames.length; i++) {
+                          debugLog(`  ${i + 1}. ${clusterNames[i]} [${clusterRoles[i]}]`);
+                        }
+                      } catch (e) {
+                        debugLog(`[Step 1c] Could not parse CLUSTERS_CONFIGURATION: ${e.message}`);
+                      }
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // Try to extract actual cluster names from description before falling back to defaults
+            if (clusterNames.length === 0 && kubeconfigPaths.length > 0 && buildInfo.description) {
+              debugLog(`[Step 1c] No cluster names in CLUSTERS_CONFIGURATION, trying to extract from description...`);
+
+              // Extract cluster names from lines like "kmanohar-hubf26 - Deploy Job (SUCCESS)"
+              const descText = buildInfo.description
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&nbsp;/g, ' ')
+                .trim();
+
+              const descLines = descText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+              const extractedNames = [];
+              const extractedRoles = [];
+
+              for (const line of descLines) {
+                // Match patterns:
+                // 1. "clustername - Deploy Job (SUCCESS)"
+                // 2. Just "clustername" on its own line (near kubeconfig/password lines)
+                let clusterName = null;
+
+                // Try pattern with "- Deploy Job"
+                const deployMatch = line.match(/^([a-zA-Z0-9_-]+)\s*-\s*Deploy Job/i);
+                if (deployMatch && deployMatch[1].length >= 2) {
+                  clusterName = deployMatch[1];
+                }
+
+                // Try standalone cluster name (alphanumeric with dashes/underscores, 2+ chars)
+                // Exclude common words like "logs", "login", "password", etc.
+                if (!clusterName && /^[a-zA-Z0-9_-]{2,}$/.test(line)) {
+                  const excludeWords = ['logs', 'log', 'login', 'password', 'pass', 'pwd', 'kubeconfig', 'console',
+                                        'web', 'jenkins', 'slave', 'branch', 'repository', 'repo', 'null', 'none',
+                                        'ip', 'ocs', 'ci', 'ocp', 'job', 'build', 'test', 'user', 'admin'];
+                  if (!excludeWords.includes(line.toLowerCase())) {
+                    clusterName = line;
+                  }
+                }
+
+                // Try extracting from URLs (Web Console, kubeconfig paths, logs)
+                if (!clusterName) {
+                  // Pattern 1: console-openshift-console.apps.CLUSTERNAME.domain.com
+                  const consoleUrlMatch = line.match(/console-openshift-console\.apps\.([a-zA-Z0-9_-]+)\./);
+                  if (consoleUrlMatch && consoleUrlMatch[1].length >= 2) {
+                    clusterName = consoleUrlMatch[1];
+                  }
+
+                  // Pattern 2: /openshift-clusters/CLUSTERNAME/
+                  if (!clusterName) {
+                    const clusterPathMatch = line.match(/\/openshift-clusters\/([a-zA-Z0-9_-]+)\//);
+                    if (clusterPathMatch && clusterPathMatch[1].length >= 2) {
+                      clusterName = clusterPathMatch[1];
+                    }
+                  }
+                }
+
+                if (clusterName) {
+                  // Normalize to lowercase for consistency
+                  clusterName = clusterName.toLowerCase();
+
+                  // Avoid duplicates
+                  if (!extractedNames.includes(clusterName)) {
+                    extractedNames.push(clusterName);
+
+                    // Try to infer role from name suffix
+                    let role = 'unknown';
+                    if (clusterName.match(/hub.*1|hub.*passive|h.*p|.*hpas|passive/i)) {
+                      role = 'hub-passive';
+                    } else if (clusterName.match(/hub|h[0-9]|acm/i)) {
+                      role = 'hub';
+                    } else if (clusterName.match(/pf|primary|c1|one|bm.*3|provider/i)) {
+                      role = 'primary';
+                    } else if (clusterName.match(/sf|secondary|c2|two|bm.*5|client/i)) {
+                      role = 'secondary';
+                    }
+                    extractedRoles.push(role);
+
+                    debugLog(`[Step 1c]   Found cluster: ${clusterName} [${role}]`);
+                  }
+                }
+              }
+
+              if (extractedNames.length > 0) {
+                clusterNames = extractedNames;
+                clusterRoles = extractedRoles;
+                debugLog(`[Step 1c] Extracted ${clusterNames.length} cluster name(s) from description: ${clusterNames.join(', ')}`);
+              }
+            }
+
+            // Fallback: If still no cluster names, use defaults based on path count
+            // (matching bash script logic)
+            if (clusterNames.length === 0 && kubeconfigPaths.length > 0) {
+              debugLog(`[Step 1c] No cluster names in CLUSTERS_CONFIGURATION or description, using defaults based on ${kubeconfigPaths.length} path(s)...`);
+
+              const numPaths = kubeconfigPaths.length;
+
+              switch (numPaths) {
+                case 4:
+                  clusterNames = ["hub", "hub_1", "vmware_one", "vmware_two"];
+                  clusterRoles = ["hub", "hub-passive", "primary", "secondary"];
+                  debugLog(`[Step 1c] Using 4-cluster default: hub, hub_1, vmware_one, vmware_two`);
+                  break;
+                case 3:
+                  clusterNames = ["hub", "vmware_one", "vmware_two"];
+                  clusterRoles = ["hub", "primary", "secondary"];
+                  debugLog(`[Step 1c] Using 3-cluster default: hub, vmware_one, vmware_two`);
+                  break;
+                case 2:
+                  clusterNames = ["hub", "vmware_one"];
+                  clusterRoles = ["hub", "primary"];
+                  debugLog(`[Step 1c] Using 2-cluster default: hub, vmware_one`);
+                  break;
+                default:
+                  // Generic names for any other count
+                  for (let i = 0; i < numPaths; i++) {
+                    clusterNames.push(`cluster_${i}`);
+                    clusterRoles.push("unknown");
+                  }
+                  debugLog(`[Step 1c] Using generic names: ${clusterNames.join(', ')}`);
+                  break;
+              }
+            }
+
+            // Parse passwords from description text
+            debugLog(`[Step 1c] Parsing passwords from description text...`);
+            const passwordsFromDescription = extractPasswordsFromDescription(buildInfo.description, debugLog);
+            debugLog(`[Step 1c] Found ${Object.keys(passwordsFromDescription).length} password(s) in description`);
+
+            // Create clusters using passwords from description
+            const extractedClusters = createClustersWithPasswords(
+              clusterNames,
+              clusterRoles,
+              passwordsFromDescription,
+              jenkinsUrl,
+              debugLog,
+              customGroupName
+            );
+
+            if (extractedClusters.length > 0) {
+              debugLog(`[Step 1c] ✅ Successfully extracted ${extractedClusters.length} cluster(s) with passwords from description!`);
+              allClusters.push(...extractedClusters);
+            } else {
+              debugLog(`[Step 1c] ⚠️ Could not find passwords in description text`);
+              debugLog(`[Step 1c] Checked for patterns like "Password: xxxx" near cluster names`);
+              debugLog(`[Step 1c] If passwords exist in description, the format may be different`);
+              debugLog(`[Step 1c] ✅ Alternative: Use "Paste JSON Directly" above`);
+            }
+          } else {
+            debugLog(`[Step 1c] ⚠️ No kubeconfig paths found in build description`);
+          }
+        } else {
+          debugLog(`[Step 1c] ⚠️ No description field in build info`);
+        }
+
+        debugLog("");
+
+        // Step 2: Check for artifacts that might contain cluster info
+        if (buildInfo.artifacts && buildInfo.artifacts.length > 0) {
+          showImportStatus("info", `📦 Found ${buildInfo.artifacts.length} artifact(s), checking for cluster data...`);
+          debugLog(`[Step 2] Found ${buildInfo.artifacts.length} artifact(s):`);
+
+          for (const artifact of buildInfo.artifacts) {
+            // Look for JSON/YAML/text files that might have cluster info
+            const fileName = artifact.fileName.toLowerCase();
+            debugLog(`  - ${artifact.fileName} (${artifact.relativePath})`);
+
+            if (fileName.includes('cluster') || fileName.includes('credential') ||
+                fileName.endsWith('.json') || fileName.endsWith('.yaml') ||
+                fileName.endsWith('.yml') || fileName.endsWith('.env') ||
+                fileName.endsWith('.txt')) {
+
+              try {
+                const artifactUrl = `${baseUrl}/artifact/${artifact.relativePath}`;
+                debugLog(`[Step 2] Fetching artifact: ${artifactUrl}`);
+                const artifactResponse = await corsFetch(artifactUrl, { headers });
+
+                if (artifactResponse.ok) {
+                  const content = await artifactResponse.text();
+                  debugLog(`[Step 2] Artifact content length: ${content.length} bytes`);
+                  const clusters = parseArtifactContent(content, fileName, jenkinsUrl, debugLog);
+
+                  if (clusters.length > 0) {
+                    debugLog(`[Step 2] ✅ Found ${clusters.length} cluster(s) in artifact: ${fileName}`);
+                    allClusters.push(...clusters);
+                  } else {
+                    debugLog(`[Step 2] ⚠️ No clusters found in artifact: ${fileName}`);
+                  }
+                } else {
+                  debugLog(`[Step 2] ❌ Failed to fetch artifact (HTTP ${artifactResponse.status})`);
+                }
+              } catch (e) {
+                debugLog(`[Step 2] ❌ Error fetching artifact ${artifact.fileName}: ${e.message}`);
+              }
+            } else {
+              debugLog(`     → Skipped (not a credential file)`);
+            }
+          }
+        }
+      } else {
+        debugLog(`[Step 1] ❌ Failed to fetch build info (HTTP ${apiResponse.status})`);
+      }
+    } catch (e) {
+      debugLog(`[Step 1] ❌ Error fetching via API: ${e.message}`);
+      if (e.name === 'TypeError') {
+        debugLog(`[Step 1] ⚠️ Network error - Jenkins may be unreachable or authentication required`);
+      }
+    }
+
+    debugLog("");
+
+    // Remove duplicates based on URL
+    const seen = new Set();
+    const uniqueClusters = allClusters.filter(c => {
+      if (seen.has(c.url)) {
+        debugLog(`[Dedup] Skipping duplicate URL: ${c.url}`);
+        return false;
+      }
+      seen.add(c.url);
+      return true;
+    });
+
+    debugLog("");
+    debugLog(`[Summary] Total credentials found: ${allClusters.length}`);
+    debugLog(`[Summary] Unique OpenShift clusters: ${uniqueClusters.length}`);
+    debugLog(`[Summary] Duplicates removed: ${allClusters.length - uniqueClusters.length}`);
+
+    if (uniqueClusters.length === 0) {
+      // Provide more helpful error message
+      const totalFound = allClusters.length;
+
+      debugLog("");
+      debugLog(`[Result] ❌ NO CLUSTERS IMPORTED`);
+      if (totalFound > 0) {
+        debugLog(`[Result] Found ${totalFound} credential(s) but they were all filtered out`);
+        debugLog(`[Result] This means the URLs didn't match OpenShift patterns`);
+        showImportStatus("error", `❌ Found ${totalFound} credential(s) but they were filtered out (not OpenShift clusters). ${debugMode ? 'Check debug output above' : 'Enable debug mode to see details'}.`);
+      } else {
+        debugLog(`[Result] No credentials found at all`);
+        debugLog(`[Result] Searched entire Jenkins JSON but couldn't find passwords`);
+        debugLog(`[Result] Most likely reasons:`);
+        debugLog(`  → Passwords stored in separate files (not in API response)`);
+        debugLog(`  → Passwords in environment variables not exposed via API`);
+        debugLog(`  → Job hasn't completed or credentials not generated yet`);
+        debugLog(``);
+        debugLog(`[Result] ✅ EASY FIX - Use "Paste JSON Directly" above:`);
+        debugLog(`  1. Run: ~/download_kubeconfig_rdr.sh.3 4073`);
+        debugLog(`  2. Open: ~/OCS4/autologin/clusters.json`);
+        debugLog(`  3. Copy all JSON content`);
+        debugLog(`  4. Paste in "Paste JSON Directly" section above`);
+        debugLog(`  5. Click "✨ Import JSON" - Done!`);
+        debugLog("");
+        debugLog(`[Workaround] Use "Paste Console Output Directly" below:`);
+        debugLog(`  1. Open Jenkins job in browser`);
+        debugLog(`  2. Click "Console Output"`);
+        debugLog(`  3. Copy the full output`);
+        debugLog(`  4. Paste in the textarea below and click "Parse Console Output"`);
+        showImportStatus("error", `❌ No passwords found in Jenkins API response. ${debugMode ? 'Check debug output above for what was searched.' : 'Enable debug mode to see details.'} Use "Paste JSON Directly" instead!`);
+      }
+      btn.disabled = false;
+      btn.textContent = "🔄 Fetch from Jenkins";
+      return;
+    }
+
+    debugLog("");
+    debugLog(`[Result] ✅ SUCCESS - ${uniqueClusters.length} cluster(s) ready to import`);
+
+    // Show preview
+    showPreview(uniqueClusters);
+    // Status is set inside showPreview()
+
+  } catch (error) {
+    console.error("Jenkins fetch error:", error);
+
+    // Provide helpful error message
+    if (error.name === 'TypeError' || error.message.includes("NetworkError")) {
+      showImportStatus("error", `❌ Cannot access Jenkins - check URL and authentication. Or use "Paste JSON Directly" option above.`);
+    } else {
+      showImportStatus("error", `❌ Failed to fetch from Jenkins: ${error.message}`);
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🔄 Fetch from Jenkins";
+  }
+});
+
+// ── Extract passwords from description text ────
+function extractPasswordsFromDescription(htmlDescription, debugLog = console.log) {
+  const passwords = {};
+
+  // Strip HTML tags to get plain text
+  const text = htmlDescription
+    .replace(/<br\s*\/?>/gi, '\n')  // Convert <br> to newlines
+    .replace(/<[^>]+>/g, ' ')        // Strip other HTML tags
+    .replace(/&nbsp;/g, ' ')         // Replace &nbsp;
+    .trim();
+
+  debugLog(`[Password Parser] Searching description text for password patterns...`);
+  debugLog(`[Password Parser] Description has ${text.length} chars, ${text.split('\n').length} lines`);
+
+  // Split into lines for easier parsing
+  const lines = text.split('\n');
+
+  // Show ALL lines for debugging (filter out empty lines)
+  const nonEmptyLines = lines.filter(l => l.trim().length > 0);
+  debugLog(`[Password Parser] ALL lines from description (${nonEmptyLines.length} non-empty lines):`);
+  for (let i = 0; i < nonEmptyLines.length; i++) {
+    debugLog(`  [${i}] ${nonEmptyLines[i]}`);
+  }
+  debugLog(``);
+
+  // Pattern 1: Look for "Password: xxxx" format
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Match various password formats: Password:, Pass:, pwd:, Pwd:
+    // Allow more characters in password: alphanumeric, dash, underscore, special chars
+    const passwordMatch = line.match(/(?:Password|Pass|Pwd):\s*([A-Za-z0-9@#$%^&*()_+=\[\]{};:'"<>,.?/\\|-]+)/i);
+    if (passwordMatch) {
+      const password = passwordMatch[1];
+
+      // Look backwards for cluster name (search up to 20 lines back)
+      let clusterName = null;
+      for (let j = i - 1; j >= Math.max(0, i - 20); j--) {
+        const prevLine = lines[j].trim();
+
+        // First try: Extract from URLs (Web Console or kubeconfig paths)
+        // Pattern 1: console-openshift-console.apps.CLUSTERNAME.domain.com
+        let urlMatch = prevLine.match(/console-openshift-console\.apps\.([a-zA-Z0-9_-]+)\./);
+        if (urlMatch && urlMatch[1].length >= 2) {
+          clusterName = urlMatch[1].toLowerCase();
+          break;
+        }
+
+        // Pattern 2: /openshift-clusters/CLUSTERNAME/
+        urlMatch = prevLine.match(/\/openshift-clusters\/([a-zA-Z0-9_-]+)\//);
+        if (urlMatch && urlMatch[1].length >= 2) {
+          clusterName = urlMatch[1].toLowerCase();
+          break;
+        }
+
+        // Second try: Standalone cluster name on line
+        // Pattern: prsurve-dr26-c2, baremetal3, hub_1, C1, etc.
+        // (may be followed by extra text like " - Deploy Job (SUCCESS)")
+        const clusterMatch = prevLine.match(/^([a-zA-Z0-9_-]+)(?:\s|$)/);
+        if (clusterMatch && clusterMatch[1].length >= 2) {
+          const candidate = clusterMatch[1].toLowerCase();
+          // Exclude common words that aren't cluster names
+          const excludeWords = ['logs', 'log', 'login', 'password', 'pass', 'pwd', 'kubeconfig', 'console',
+                                'web', 'jenkins', 'slave', 'branch', 'repository', 'repo', 'null', 'none',
+                                'ip', 'ocs', 'ci', 'ocp', 'job', 'build', 'test', 'user', 'admin'];
+          if (!excludeWords.includes(candidate)) {
+            clusterName = candidate;
+            break;
+          }
+        }
+      }
+
+      if (clusterName) {
+        passwords[clusterName] = password;
+        debugLog(`[Password Parser] Found: ${clusterName} → Password: ${'*'.repeat(password.length)}`);
+      } else {
+        debugLog(`[Password Parser] Found password but couldn't match to cluster: ${'*'.repeat(password.length)}`);
+      }
+    }
+
+    // Pattern 2: Look for "Login: kubeadmin" followed by "Password:"
+    if (line.match(/Login:\s*kubeadmin/i)) {
+      // Check next few lines for password
+      for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
+        const nextLine = lines[j].trim();
+        const pwMatch = nextLine.match(/(?:Password|Pass|Pwd):\s*([A-Za-z0-9@#$%^&*()_+=\[\]{};:'"<>,.?/\\|-]+)/i);
+        if (pwMatch) {
+          const password = pwMatch[1];
+
+          // Look backwards for cluster name (search up to 20 lines back)
+          let clusterName = null;
+          for (let k = i - 1; k >= Math.max(0, i - 20); k--) {
+            const prevLine = lines[k].trim();
+
+            // First try: Extract from URLs (Web Console or kubeconfig paths)
+            // Pattern 1: console-openshift-console.apps.CLUSTERNAME.domain.com
+            let urlMatch = prevLine.match(/console-openshift-console\.apps\.([a-zA-Z0-9_-]+)\./);
+            if (urlMatch && urlMatch[1].length >= 2) {
+              clusterName = urlMatch[1].toLowerCase();
+              break;
+            }
+
+            // Pattern 2: /openshift-clusters/CLUSTERNAME/
+            urlMatch = prevLine.match(/\/openshift-clusters\/([a-zA-Z0-9_-]+)\//);
+            if (urlMatch && urlMatch[1].length >= 2) {
+              clusterName = urlMatch[1].toLowerCase();
+              break;
+            }
+
+            // Second try: Standalone cluster name on line
+            const clusterMatch = prevLine.match(/^([a-zA-Z0-9_-]+)(?:\s|$)/);
+            if (clusterMatch && clusterMatch[1].length >= 2) {
+              const candidate = clusterMatch[1].toLowerCase();
+              // Exclude common words that aren't cluster names
+              const excludeWords = ['logs', 'log', 'login', 'password', 'pass', 'pwd', 'kubeconfig', 'console',
+                                    'web', 'jenkins', 'slave', 'branch', 'repository', 'repo', 'null', 'none',
+                                    'ip', 'ocs', 'ci', 'ocp', 'job', 'build', 'test', 'user', 'admin'];
+              if (!excludeWords.includes(candidate)) {
+                clusterName = candidate;
+                break;
+              }
+            }
+          }
+
+          if (clusterName && !passwords[clusterName]) {
+            passwords[clusterName] = password;
+            debugLog(`[Password Parser] Found (via Login): ${clusterName} → Password: ${'*'.repeat(password.length)}`);
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  debugLog(``);
+  debugLog(`[Password Parser] SUMMARY:`);
+  debugLog(`[Password Parser] Total passwords found: ${Object.keys(passwords).length}`);
+  for (const [name, pwd] of Object.entries(passwords)) {
+    debugLog(`  ✅ ${name} → ${'*'.repeat(pwd.length)}`);
+  }
+
+  return passwords;
+}
+
+// ── Create clusters using extracted passwords ────
+function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenkinsUrl, debugLog = console.log, customGroupName = '') {
+  const results = [];
+  const jobIdMatch = jenkinsUrl.match(/\/job\/([^\/]+)\/(\d+)/);
+  const autoGroupId = jobIdMatch ? jobIdMatch[2] : null;
+
+  // Use custom group name if provided, otherwise use auto-detected job ID
+  const groupId = customGroupName || autoGroupId;
+
+  debugLog(`[Cluster Builder] Creating ${clusterNames.length} cluster(s) with passwords...`);
+  debugLog(`[Cluster Builder] Expected clusters: ${clusterNames.join(', ')}`);
+  debugLog(`[Cluster Builder] Available passwords: ${Object.keys(passwords).join(', ')}`);
+  if (customGroupName) {
+    debugLog(`[Cluster Builder] Using custom group name: "${customGroupName}"`);
+  } else if (autoGroupId) {
+    debugLog(`[Cluster Builder] Using auto-detected group ID: "${autoGroupId}"`);
+  }
+  debugLog(``);
+
+  for (let i = 0; i < clusterNames.length; i++) {
+    const clusterName = clusterNames[i];
+    const clusterRole = clusterRoles[i] || 'unknown';
+
+    debugLog(`[Cluster Builder] Processing ${i + 1}/${clusterNames.length}: ${clusterName}`);
+
+    // Try to find password for this cluster
+    let password = passwords[clusterName];
+
+    if (!password) {
+      // Try variations (underscores vs dashes)
+      const nameWithDashes = clusterName.replace(/_/g, '-');
+      const nameWithUnderscores = clusterName.replace(/-/g, '_');
+
+      password = passwords[nameWithDashes] || passwords[nameWithUnderscores];
+
+      if (password) {
+        debugLog(`  → Found password via variation: ${nameWithDashes !== clusterName ? nameWithDashes : nameWithUnderscores}`);
+      }
+    }
+
+    if (password) {
+      // Construct console URL from cluster name
+      const consoleUrl = `https://console-openshift-console.apps.${clusterName}.qe.rh-ocs.com`;
+
+      const cluster = {
+        name: clusterName,
+        url: consoleUrl,
+        user: 'kubeadmin',
+        password: password,
+        role: clusterRole
+      };
+
+      if (groupId) {
+        cluster.group = groupId;
+      }
+
+      results.push(cluster);
+      debugLog(`  ✅ Created cluster: ${clusterName} [${clusterRole}]`);
+    } else {
+      debugLog(`  ⚠️ No password found for: ${clusterName}`);
+    }
+
+    debugLog(``);
+  }
+
+  debugLog(`[Cluster Builder] FINAL SUMMARY:`);
+  debugLog(`[Cluster Builder] Successfully created: ${results.length}/${clusterNames.length} cluster(s)`);
+  if (results.length < clusterNames.length) {
+    const missingClusters = clusterNames.filter(name =>
+      !results.some(r => r.name === name)
+    );
+    debugLog(`[Cluster Builder] ❌ Missing passwords for: ${missingClusters.join(', ')}`);
+    debugLog(`[Cluster Builder] Check if cluster names in description match expected names above`);
+  }
+
+  return results;
+}
+
+// ── Extract kubeconfig paths from HTML description ────
+function extractKubeconfigPaths(htmlDescription, debugLog = console.log) {
+  // Parse HTML to find links containing "/kubeconfig"
+  // Similar to bash script: grep "/kubeconfig"
+
+  // Strip HTML tags and extract text
+  const text = htmlDescription
+    .replace(/>/g, '>\n')
+    .replace(/</g, '\n<')
+    .split('\n')
+    .filter(line => !line.trim().startsWith('<') && line.trim().length > 0)
+    .join(' ');
+
+  debugLog(`[Path Extractor] Searching for kubeconfig paths in description...`);
+
+  // Find all paths that contain "/kubeconfig"
+  const paths = [];
+  const regex = /(https?:\/\/[^\s"'<>]+\/kubeconfig)/gi;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const fullPath = match[1];
+    // Extract the path up to (but not including) "/kubeconfig"
+    const basePath = fullPath.replace(/\/kubeconfig$/, '');
+    if (!paths.includes(basePath)) {
+      paths.push(basePath);
+      debugLog(`[Path Extractor] Found: ${basePath}`);
+    }
+  }
+
+  // Also try to find paths in href attributes
+  const hrefRegex = /href=["']([^"']+\/kubeconfig)["']/gi;
+  while ((match = hrefRegex.exec(htmlDescription)) !== null) {
+    const fullPath = match[1];
+    const basePath = fullPath.replace(/\/kubeconfig$/, '');
+    if (!paths.includes(basePath)) {
+      paths.push(basePath);
+      debugLog(`[Path Extractor] Found (href): ${basePath}`);
+    }
+  }
+
+  return paths;
+}
+
+// ── Extract cluster credentials from Jenkins JSON (no file downloads) ────
+
+// ── Parse Jenkins build parameters for cluster credentials ────
+function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
+  const results = [];
+
+  // Extract Jenkins job ID from URL for grouping
+  const jobIdMatch = jenkinsUrl.match(/\/job\/([^\/]+)\/(\d+)/);
+  const groupId = jobIdMatch ? `${jobIdMatch[1]}-${jobIdMatch[2]}` : null;
+
+  debugLog(`[Param Parser] Parsing ${Object.keys(params).length} parameters for cluster credentials...`);
+
+  // Special handling for CLUSTERS_CONFIGURATION JSON parameter (common in QE jobs)
+  if (params.CLUSTERS_CONFIGURATION) {
+    debugLog(`[Param Parser] Found CLUSTERS_CONFIGURATION parameter`);
+    debugLog(`[Param Parser] Raw value length: ${params.CLUSTERS_CONFIGURATION.length} chars`);
+    debugLog(`[Param Parser] First 200 chars: ${params.CLUSTERS_CONFIGURATION.substring(0, 200)}`);
+    debugLog(`[Param Parser] Last 100 chars: ${params.CLUSTERS_CONFIGURATION.substring(Math.max(0, params.CLUSTERS_CONFIGURATION.length - 100))}`);
+
+    try {
+      // Detect format: JSON or YAML
+      let clustersConfig;
+      let configStr = params.CLUSTERS_CONFIGURATION.trim();
+
+      // Check if it's YAML format (starts with "- CLUSTER_NAME:" or similar)
+      const isYaml = /^[\s"']*-\s+CLUSTER_NAME:/i.test(configStr);
+
+      if (isYaml) {
+        debugLog(`[Param Parser] Detected YAML format`);
+
+        // Simple YAML parsing - extract CLUSTER_NAME fields
+        // Match lines like: "- CLUSTER_NAME: dnd-jijoy-h135" or "  CLUSTER_NAME: hub"
+        const clusterNameMatches = configStr.matchAll(/CLUSTER_NAME:\s*([a-zA-Z0-9_-]+)/gi);
+        const clusterNames = [];
+        for (const match of clusterNameMatches) {
+          if (match[1]) {
+            clusterNames.push(match[1]);
+          }
+        }
+
+        if (clusterNames.length > 0) {
+          debugLog(`[Param Parser] Extracted ${clusterNames.length} cluster name(s) from YAML: ${clusterNames.join(', ')}`);
+          // Don't parse passwords from params - they're in description
+          // Just return empty for now, description parsing will handle it
+          debugLog(`[Param Parser] YAML doesn't contain passwords, will use description parsing`);
+        } else {
+          debugLog(`[Param Parser] No CLUSTER_NAME fields found in YAML`);
+        }
+
+        // Return empty - let description parsing handle this
+        return results;
+
+      } else {
+        // JSON format - try to parse
+        debugLog(`[Param Parser] Attempting JSON parse`);
+
+        // Jenkins sometimes wraps JSON in multiple layers of quotes: """[...]""" or """"""[...]""""""
+        // Find where the actual JSON starts and ends (should begin with [ or { and end with ] or })
+        const firstBracket = Math.max(
+          configStr.indexOf('[') >= 0 ? configStr.indexOf('[') : -1,
+          configStr.indexOf('{') >= 0 ? configStr.indexOf('{') : -1
+        );
+        const lastBracket = Math.max(
+          configStr.lastIndexOf(']'),
+          configStr.lastIndexOf('}')
+        );
+
+        if (firstBracket >= 0 && lastBracket > firstBracket) {
+          const strippedQuotes = firstBracket > 0 || lastBracket < configStr.length - 1;
+          if (strippedQuotes) {
+            const originalLength = configStr.length;
+            const leadingChars = firstBracket;
+            const trailingChars = originalLength - lastBracket - 1;
+
+            configStr = configStr.substring(firstBracket, lastBracket + 1);
+            debugLog(`[Param Parser] Stripped ${leadingChars} leading and ${trailingChars} trailing character(s) to extract JSON`);
+
+            // Unescape any escaped quotes
+            configStr = configStr.replace(/\\"/g, '"').replace(/\\'/g, "'");
+          }
+        }
+
+        clustersConfig = JSON.parse(configStr);
+      }
+
+      debugLog(`[Param Parser] Successfully parsed CLUSTERS_CONFIGURATION: ${clustersConfig.length} cluster(s)`);
+
+      for (const clusterObj of clustersConfig) {
+        debugLog(`[Param Parser] Processing cluster config:`);
+        debugLog(`  - CLUSTER_NAME: ${clusterObj.CLUSTER_NAME || 'N/A'}`);
+        debugLog(`  - CLUSTER_TYPE: ${clusterObj.CLUSTER_TYPE || 'N/A'}`);
+
+        // Try to find credentials in the cluster object
+        const name = clusterObj.CLUSTER_NAME || clusterObj.name || "Cluster";
+        const clusterType = clusterObj.CLUSTER_TYPE || clusterObj.type || "";
+
+        // Check multiple possible field names for credentials
+        const url = clusterObj.CONSOLE_URL || clusterObj.console_url ||
+                   clusterObj.CLUSTER_URL || clusterObj.cluster_url ||
+                   clusterObj.URL || clusterObj.url ||
+                   clusterObj.API_URL || clusterObj.api_url;
+
+        const user = clusterObj.ADMIN_USER || clusterObj.admin_user ||
+                    clusterObj.USER || clusterObj.user ||
+                    clusterObj.USERNAME || clusterObj.username ||
+                    clusterObj.KUBEADMIN_USER || clusterObj.kubeadmin_user;
+
+        const password = clusterObj.ADMIN_PASSWORD || clusterObj.admin_password ||
+                        clusterObj.PASSWORD || clusterObj.password ||
+                        clusterObj.PASS || clusterObj.pass ||
+                        clusterObj.KUBEADMIN_PASSWORD || clusterObj.kubeadmin_password;
+
+        debugLog(`  → URL: ${url || 'NOT FOUND'}`);
+        debugLog(`  → User: ${user || 'NOT FOUND'}`);
+        debugLog(`  → Password: ${password ? '***' : 'NOT FOUND'}`);
+
+        if (url && user && password) {
+          if (isOpenShiftClusterURL(url)) {
+            const cluster = { name, url, user, password };
+
+            // Map CLUSTER_TYPE to role
+            if (clusterType) {
+              const typeMap = {
+                'Active ACM': 'hub',
+                'Passive ACM': 'hub-passive',
+                'Primary': 'primary',
+                'Secondary': 'secondary',
+                'C1': 'primary',
+                'C2': 'secondary'
+              };
+              cluster.role = typeMap[clusterType] || clusterType.toLowerCase();
+            }
+
+            if (groupId) cluster.group = groupId;
+            results.push(cluster);
+            debugLog(`  ✅ Accepted: ${name} - ${url}`);
+          } else {
+            debugLog(`  ❌ Filtered out (not OpenShift): ${url}`);
+          }
+        } else {
+          debugLog(`  ⚠️ Incomplete credentials in CLUSTERS_CONFIGURATION object`);
+        }
+      }
+
+      if (results.length > 0) {
+        debugLog(`[Param Parser] Extracted ${results.length} cluster(s) from CLUSTERS_CONFIGURATION`);
+        debugLog("");
+        return results;
+      } else {
+        debugLog(`[Param Parser] No complete credentials found in CLUSTERS_CONFIGURATION objects`);
+        debugLog(`[Param Parser] Will continue checking for KEY=VALUE style parameters...`);
+      }
+    } catch (e) {
+      debugLog(`[Param Parser] Failed to parse CLUSTERS_CONFIGURATION as JSON: ${e.message}`);
+      debugLog(`[Param Parser] Error details: ${e.stack || e}`);
+
+      // Check if the value looks truncated (doesn't end with closing bracket)
+      const configStr = params.CLUSTERS_CONFIGURATION.trim();
+      if (!configStr.endsWith(']') && !configStr.endsWith('}')) {
+        debugLog(`[Param Parser] ⚠️ CLUSTERS_CONFIGURATION appears to be TRUNCATED by Jenkins API`);
+        debugLog(`[Param Parser] Value ends with: "${configStr.substring(configStr.length - 20)}"`);
+        debugLog(`[Param Parser] Expected it to end with ] or }`);
+        debugLog(`[Param Parser] This is a known Jenkins API limitation for long parameters`);
+        debugLog(`[Param Parser] WORKAROUND: Check for artifacts or use console output paste`);
+      }
+
+      debugLog(`[Param Parser] Will continue checking for KEY=VALUE style parameters...`);
+    }
+  }
+
+  debugLog("");
+
+  // Find cluster prefixes by looking for URL fields
+  const prefixes = new Set();
+  for (const key of Object.keys(params)) {
+    // Look for URL fields to identify cluster prefixes
+    // Common patterns: HUB_URL, C1_CONSOLE_URL, PRIMARY_URL, etc.
+    if (key.endsWith('_URL') || key.endsWith('_CONSOLE_URL') || key.endsWith('_CONSOLE') || key.endsWith('_API_URL')) {
+      const suffixes = ['_URL', '_CONSOLE_URL', '_CONSOLE', '_API_URL'];
+      for (const suffix of suffixes) {
+        if (key.endsWith(suffix)) {
+          const prefix = key.slice(0, key.length - suffix.length);
+          prefixes.add(prefix);
+          debugLog(`[Param Parser] Found cluster prefix: ${prefix} (from ${key})`);
+          break;
+        }
+      }
+    }
+  }
+
+  debugLog(`[Param Parser] Found ${prefixes.size} potential cluster prefix(es)`);
+
+  // For each prefix, try to extract a complete cluster credential set
+  for (const prefix of prefixes) {
+    const name = params[`${prefix}_NAME`] || params[`${prefix}_CLUSTER_NAME`] ||
+                 params[`${prefix}_CLUSTER`] || prefix.toLowerCase().replace(/_/g, '-');
+
+    const url = params[`${prefix}_URL`] || params[`${prefix}_CONSOLE_URL`] ||
+               params[`${prefix}_CONSOLE`] || params[`${prefix}_API_URL`];
+
+    const user = params[`${prefix}_USER`] || params[`${prefix}_USERNAME`] ||
+                params[`${prefix}_ADMIN`] || params[`${prefix}_ADMIN_USER`];
+
+    const password = params[`${prefix}_PASSWORD`] || params[`${prefix}_PASS`] ||
+                    params[`${prefix}_PWD`] || params[`${prefix}_ADMIN_PASSWORD`];
+
+    const role = params[`${prefix}_ROLE`] || params[`${prefix}_TYPE`];
+
+    debugLog(`[Param Parser] Checking prefix "${prefix}":`);
+    debugLog(`  → URL: ${url || 'NOT FOUND'}`);
+    debugLog(`  → User: ${user || 'NOT FOUND'}`);
+    debugLog(`  → Password: ${password ? '***' : 'NOT FOUND'}`);
+
+    if (url && user && password) {
+      if (isOpenShiftClusterURL(url)) {
+        const cluster = { name, url, user, password };
+        if (role) cluster.role = role.toLowerCase();
+        if (groupId) cluster.group = groupId;
+        results.push(cluster);
+        debugLog(`  ✅ Accepted: ${name} - ${url}`);
+      } else {
+        debugLog(`  ❌ Filtered out (not OpenShift): ${url}`);
+      }
+    } else {
+      debugLog(`  ⚠️ Incomplete credentials - skipped`);
+    }
+  }
+
+  debugLog(`[Param Parser] Result: ${results.length} cluster(s) extracted from parameters`);
+  debugLog("");
+
+  return results;
+}
+
+// ── Check if URL is an OpenShift cluster ─────────────
+function isOpenShiftClusterURL(url) {
+  if (!url || typeof url !== 'string') return false;
+
+  const urlLower = url.toLowerCase();
+
+  // Must be HTTPS/HTTP URL
+  if (!urlLower.startsWith('http://') && !urlLower.startsWith('https://')) return false;
+
+  // Exclude known non-OpenShift services first (higher priority)
+  const excludePatterns = [
+    'gitlab',
+    'github',
+    'bitbucket',
+    'jenkins',
+    'jira',
+    'confluence',
+    'artifactory',
+    'nexus',
+    'sonarqube',
+    'docker.io',
+    'registry.access.redhat.com',
+    'quay.io',
+  ];
+
+  // Check if it contains any exclude patterns
+  for (const pattern of excludePatterns) {
+    if (urlLower.includes(pattern)) {
+      console.log(`[Filter] Excluding ${url} - matches pattern: ${pattern}`);
+      return false;
+    }
+  }
+
+  // Check for OpenShift-specific patterns in hostname
+  const openshiftPatterns = [
+    'console-openshift-console',  // Standard OpenShift console
+    'console.openshift',          // Alternative console format
+    'oauth-openshift',            // OAuth endpoint
+    'api.openshift',              // API endpoint
+    '.apps.',                     // OpenShift routes domain (with dots on both sides)
+    'openshift.com',              // Red Hat hosted
+    'openshiftapps.com',          // Red Hat hosted
+    'rhcloud.com',                // Red Hat cloud
+  ];
+
+  // Check if it contains any OpenShift patterns
+  for (const pattern of openshiftPatterns) {
+    if (urlLower.includes(pattern)) {
+      console.log(`[Filter] Accepting ${url} - matches OpenShift pattern: ${pattern}`);
+      return true;
+    }
+  }
+
+  // Also check if it looks like an OCP cluster URL with typical structure
+  // e.g., https://console-openshift-console.apps.cluster-name.domain.com
+  // or https://api.cluster-name.domain.com:6443
+  if ((urlLower.includes('console') && urlLower.includes('.apps.')) ||
+      (urlLower.includes('api.') && urlLower.includes(':6443'))) {
+    console.log(`[Filter] Accepting ${url} - looks like OpenShift cluster URL`);
+    return true;
+  }
+
+  console.log(`[Filter] Excluding ${url} - no OpenShift patterns found`);
+  return false;
+}
+
+// ── Parse artifact content (JSON/YAML/ENV files) ──────
+function parseArtifactContent(content, fileName, jenkinsUrl, debugLog = console.log) {
+  const jobIdMatch = jenkinsUrl.match(/\/job\/([^\/]+)\/(\d+)/);
+  const groupId = jobIdMatch ? `${jobIdMatch[1]}-${jobIdMatch[2]}` : null;
+
+  let clusters = [];
+
+  // Try parsing as JSON first
+  if (fileName.endsWith('.json')) {
+    try {
+      clusters = parseJSON(content);
+      debugLog(`[Artifact Parser] Parsed ${fileName} as JSON: ${clusters.length} cluster(s)`);
+    } catch (e) {
+      debugLog(`[Artifact Parser] Failed to parse ${fileName} as JSON: ${e.message}`);
+    }
+  }
+  // Try parsing as YAML
+  else if (fileName.endsWith('.yaml') || fileName.endsWith('.yml')) {
+    try {
+      clusters = parseYAML(content);
+      debugLog(`[Artifact Parser] Parsed ${fileName} as YAML: ${clusters.length} cluster(s)`);
+    } catch (e) {
+      debugLog(`[Artifact Parser] Failed to parse ${fileName} as YAML: ${e.message}`);
+    }
+  }
+  // Try parsing as ENV
+  else if (fileName.endsWith('.env') || fileName.endsWith('.txt')) {
+    try {
+      clusters = parseEnv(content);
+      debugLog(`[Artifact Parser] Parsed ${fileName} as ENV: ${clusters.length} cluster(s)`);
+    } catch (e) {
+      debugLog(`[Artifact Parser] Failed to parse ${fileName} as ENV: ${e.message}`);
+    }
+  }
+
+  // Filter to only OpenShift clusters
+  const beforeFilter = clusters.length;
+  clusters = clusters.filter(c => {
+    const isOCP = isOpenShiftClusterURL(c.url);
+    if (!isOCP) {
+      debugLog(`[Artifact Parser] ❌ Filtered out (not OpenShift): ${c.url}`);
+    } else {
+      debugLog(`[Artifact Parser] ✅ Accepted: ${c.url}`);
+    }
+    return isOCP;
+  });
+
+  if (beforeFilter > clusters.length) {
+    debugLog(`[Artifact Parser] Filtered ${beforeFilter - clusters.length} non-OpenShift credential(s) from ${fileName}`);
+  }
+
+  // Add group ID to all clusters
+  if (groupId) {
+    clusters.forEach(c => {
+      if (!c.group) c.group = groupId;
+    });
+  }
+
+  return clusters;
+}
+
+// ── Parse Jenkins console output for cluster credentials ─
+function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.log) {
+  const clusters = [];
+
+  // Extract Jenkins job ID from URL for grouping
+  const jobIdMatch = jenkinsUrl.match(/\/job\/([^\/]+)\/(\d+)/);
+  const groupId = jobIdMatch ? `${jobIdMatch[1]}-${jobIdMatch[2]}` : null;
+
+  debugLog(`[Parser] Starting to parse console output...`);
+  debugLog(`[Parser] Job ID: ${groupId || 'N/A'}`);
+
+  // Common patterns for cluster credentials in Jenkins output
+  const patterns = [
+    // Pattern 1: KEY=VALUE format (like .env) - case insensitive, more flexible
+    {
+      name: "env-vars",
+      parse: (text) => {
+        const vars = {};
+        const lines = text.split('\n');
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+
+          // Match KEY=VALUE or KEY: VALUE
+          const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)\s*[=:]\s*(.+)$/i);
+          if (match) {
+            const key = match[1].trim().toUpperCase();
+            const val = match[2].trim().replace(/^["']|["']$/g, '');
+            vars[key] = val;
+          }
+        }
+
+        // Find cluster prefixes by looking for URL fields
+        const prefixes = new Set();
+        for (const key of Object.keys(vars)) {
+          // Look for URL fields to identify cluster prefixes
+          if (key.endsWith('_URL') || key.endsWith('_CONSOLE_URL') || key.endsWith('_CONSOLE')) {
+            const suffixes = ['_URL', '_CONSOLE_URL', '_CONSOLE'];
+            for (const suffix of suffixes) {
+              if (key.endsWith(suffix)) {
+                prefixes.add(key.slice(0, key.length - suffix.length));
+                break;
+              }
+            }
+          }
+        }
+
+        const results = [];
+        for (const prefix of prefixes) {
+          const name = vars[`${prefix}_NAME`] || vars[`${prefix}_CLUSTER_NAME`] ||
+                       vars[`${prefix}_CLUSTER`] || prefix.toLowerCase().replace(/_/g, '-');
+          const url = vars[`${prefix}_URL`] || vars[`${prefix}_CONSOLE_URL`] ||
+                     vars[`${prefix}_CONSOLE`] || vars[`${prefix}_API_URL`];
+          const user = vars[`${prefix}_USER`] || vars[`${prefix}_USERNAME`] ||
+                      vars[`${prefix}_ADMIN`] || vars[`${prefix}_ADMIN_USER`];
+          const password = vars[`${prefix}_PASSWORD`] || vars[`${prefix}_PASS`] ||
+                          vars[`${prefix}_PWD`] || vars[`${prefix}_ADMIN_PASSWORD`];
+          const role = vars[`${prefix}_ROLE`] || vars[`${prefix}_TYPE`];
+
+          if (url && user && password) {
+            if (isOpenShiftClusterURL(url)) {
+              const cluster = { name, url, user, password };
+              if (role) cluster.role = role.toLowerCase();
+              if (groupId) cluster.group = groupId;
+              results.push(cluster);
+              debugLog(`    ✅ Accepted: ${url}`);
+            } else {
+              debugLog(`    ❌ Filtered out (not OpenShift): ${url}`);
+            }
+          }
+        }
+
+        return results;
+      }
+    },
+
+    // Pattern 2: JSON blocks in output (nested support)
+    {
+      name: "json-blocks",
+      parse: (text) => {
+        const results = [];
+
+        // Try to find JSON arrays or objects
+        const jsonBlockRegex = /[\[{][\s\S]*?[\]}]/g;
+        const matches = text.match(jsonBlockRegex) || [];
+
+        for (const match of matches) {
+          try {
+            const parsed = JSON.parse(match);
+            const arr = Array.isArray(parsed) ? parsed : [parsed];
+
+            for (const obj of arr) {
+              if (obj && typeof obj === 'object') {
+                const url = obj.url || obj.console_url || obj.consoleUrl || obj.api_url;
+                const user = obj.user || obj.username || obj.admin || obj.admin_user;
+                const password = obj.password || obj.pass || obj.pwd || obj.admin_password;
+                const name = obj.name || obj.cluster_name || obj.clusterName || "Cluster";
+
+                if (url && user && password) {
+                  if (isOpenShiftClusterURL(url)) {
+                    const cluster = { name, url, user, password };
+                    if (obj.role) cluster.role = obj.role.toLowerCase();
+                    if (groupId) cluster.group = groupId;
+                    results.push(cluster);
+                    debugLog(`    ✅ Accepted: ${url}`);
+                  } else {
+                    debugLog(`    ❌ Filtered out (not OpenShift): ${url}`);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+
+        return results;
+      }
+    },
+
+    // Pattern 3: Table-like output
+    {
+      name: "table-format",
+      parse: (text) => {
+        const results = [];
+
+        // Look for patterns like:
+        // Name: HUB  URL: https://...  User: admin  Password: xxx
+        // or multi-line blocks
+        const blockRegex = /(?:Name|Cluster|CLUSTER_NAME)\s*[:\s]\s*([^\n]+)[\s\S]*?(?:URL|Console|CONSOLE_URL)\s*[:\s]\s*(https?:\/\/[^\s]+)[\s\S]*?(?:User|Username|USER)\s*[:\s]\s*([^\s]+)[\s\S]*?(?:Password|Pass|PASSWORD)\s*[:\s]\s*([^\s]+)/gi;
+
+        let match;
+        while ((match = blockRegex.exec(text)) !== null) {
+          const url = match[2].trim();
+          if (isOpenShiftClusterURL(url)) {
+            const cluster = {
+              name: match[1].trim(),
+              url: url,
+              user: match[3].trim(),
+              password: match[4].trim()
+            };
+            if (groupId) cluster.group = groupId;
+            results.push(cluster);
+            debugLog(`    ✅ Accepted: ${url}`);
+          } else {
+            debugLog(`    ❌ Filtered out (not OpenShift): ${url}`);
+          }
+        }
+
+        return results;
+      }
+    },
+
+    // Pattern 4: Common script output formats
+    {
+      name: "script-output",
+      parse: (text) => {
+        const results = [];
+
+        // Look for echo/print statements with credentials
+        // e.g., "Login to https://... with admin / password123"
+        const loginRegex = /(?:login to|access|connect to|url is)\s+(https?:\/\/[^\s]+).*?(?:with|using|user|username)\s+([^\s\/]+)\s*[\/]\s*([^\s]+)/gi;
+
+        let match;
+        while ((match = loginRegex.exec(text)) !== null) {
+          const url = match[1].trim();
+          if (isOpenShiftClusterURL(url)) {
+            const cluster = {
+              name: "Cluster",
+              url: url,
+              user: match[2].trim(),
+              password: match[3].trim()
+            };
+            if (groupId) cluster.group = groupId;
+            results.push(cluster);
+            debugLog(`    ✅ Accepted: ${url}`);
+          } else {
+            debugLog(`    ❌ Filtered out (not OpenShift): ${url}`);
+          }
+        }
+
+        return results;
+      }
+    }
+  ];
+
+  debugLog(`[Parser] Trying ${patterns.length} parsing patterns...`);
+  debugLog("");
+
+  // Try each pattern
+  for (const pattern of patterns) {
+    try {
+      debugLog(`[Parser] Trying pattern: ${pattern.name}`);
+      const parsed = pattern.parse(consoleText);
+      if (parsed.length > 0) {
+        debugLog(`[Parser] ✅ Pattern "${pattern.name}" found ${parsed.length} cluster(s)`);
+        for (const cluster of parsed) {
+          debugLog(`  → ${cluster.name}: ${cluster.url}`);
+        }
+        clusters.push(...parsed);
+      } else {
+        debugLog(`[Parser] ⚠️ Pattern "${pattern.name}" - no matches`);
+      }
+    } catch (e) {
+      debugLog(`[Parser] ❌ Pattern "${pattern.name}" failed: ${e.message}`);
+    }
+  }
+
+  debugLog("");
+
+  // Remove duplicates based on URL
+  const seen = new Set();
+  const unique = clusters.filter(c => {
+    if (seen.has(c.url)) return false;
+    seen.add(c.url);
+    return true;
+  });
+
+  debugLog(`[Parser] Total matches: ${clusters.length}, Unique: ${unique.length}`);
+
+  return unique;
+}
+
 
 // ── Export clusters to JSON ───────────────────────────
 document.getElementById("export-btn").addEventListener("click", () => {
