@@ -4,12 +4,21 @@
 
 **Perfect for:** QE teams, OpenShift administrators, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-2.1-red)
+![Version](https://img.shields.io/badge/version-2.2-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v2.1:**
+**New in v2.2:**
+- 🔧 **Jenkins Import** - Automatically fetch cluster credentials from Jenkins jobs
+- ⭐ **Pin/Favorite** - Pin important clusters to the top of your list
+- ⏱️ **Last Login Timestamp** - See when you last logged into each cluster (e.g., "2h ago")
+- 🎨 **Color-coded Groups** - Groups have consistent colors for easy identification
+- 🏷️ **Tags & Notes** - Add tags and notes to organize and document clusters
+- 📐 **Adjustable Popup Size** - Choose from 4 sizes (Compact to X-Large)
+- 💬 **Enhanced Import Preview** - Prominent preview with auto-scroll for Jenkins imports
+
+**v2.1 Features:**
 - 🔒 Smart SSL certificate warning detection and handling
 - 🔗 Test Connection button to pre-accept certificates
 - 💾 Form state persistence across tab switches
@@ -45,6 +54,7 @@ For RDR setups with grouped clusters, use the `group` field to enable **⚡ Logi
 | 🖥 **Multi-cluster** | Manage any number of OpenShift clusters in one place |
 | 🔐 **One-click login** | Click Login — credentials are filled and submitted automatically |
 | ⚡ **Login All** | Open and login to all clusters in a group with a single click |
+| 🔧 **Jenkins Import** | Automatically fetch cluster credentials from Jenkins job URLs |
 | 📦 **RDR Grouping** | Auto-groups clusters by Jenkins job ID or custom group field |
 | 🤖 **Auto-detect** | Detects OpenShift login pages and offers to fill credentials |
 | 🔀 **OAuth aware** | Handles full OAuth/IDP redirect chains transparently |
@@ -52,11 +62,16 @@ For RDR setups with grouped clusters, use the `group` field to enable **⚡ Logi
 | 🔗 **Test Connection** | Pre-accept certificates before saving clusters |
 | 💾 **Form Auto-save** | Preserves cluster details when switching tabs or closing popup |
 | 🏷 **Role badges** | Identifies Hub, Passive Hub, C1, C2 clusters with colour-coded badges |
+| ⭐ **Pin/Favorite** | Pin important clusters to the top of your list |
+| ⏱️ **Last Login Tracking** | See when you last accessed each cluster (e.g., "2h ago") |
+| 🎨 **Color-coded Groups** | Groups have consistent colors based on their name |
+| 🏷️ **Tags & Notes** | Add tags and notes to organize and document clusters |
 | 🔍 **Search & Filter** | Real-time search across cluster names and URLs |
 | ⋮⋮ **Drag & Drop** | Reorder clusters and groups by dragging them |
 | ☑️ **Bulk Actions** | Select and delete multiple clusters at once |
 | 📂 **File import** | Load clusters from JSON or YAML files — drag and drop |
-| 💾 **Export** | Back up your cluster list as a JSON file (includes roles & groups) |
+| 💾 **Export** | Back up your cluster list as a JSON file (includes roles, groups, tags, notes) |
+| 📐 **Adjustable Size** | Choose popup width from Compact (340px) to X-Large (750px) |
 | ⚙️ **Configurable** | Toggle auto-login, confirmation prompts, tab behavior, and more |
 
 ---
@@ -112,6 +127,8 @@ When you have multiple clusters grouped together (by `group` field):
 3. Optional fields:
    - **Role**: Select from Active Hub, Passive Hub, Primary C1, Secondary C2 (or leave for auto-detect)
    - **Group / Jenkins Job ID**: Clusters with the same group value are grouped together
+   - **Tags**: Comma-separated tags (e.g., "production, important, test")
+   - **Notes**: Free-form notes about the cluster
 4. **(New in v2.1)** **Test Connection**: If your cluster uses a self-signed certificate:
    - Click **🔗 Test Connection (Accept Certificate)**
    - A new tab opens to the cluster URL
@@ -121,6 +138,50 @@ When you have multiple clusters grouped together (by `group` field):
 5. Click **Save Cluster**
 
 > **Tip:** The form auto-saves your input as you type. If you switch tabs or the popup closes, your partially-entered data will be restored when you reopen it.
+
+### Import from Jenkins **(New in v2.2)**
+
+Automatically fetch cluster credentials directly from Jenkins job console output:
+
+1. Go to the **📂 Import** tab
+2. Paste a Jenkins job URL (e.g., `https://jenkins.example.com/job/qe-rdr-setup/4073/`)
+3. (Optional) Enter Jenkins username and API token for authenticated jobs
+4. (Optional) Customize the group name — defaults to job ID
+5. Click **🔄 Fetch from Jenkins**
+6. The extension will:
+   - Parse the console output and artifacts
+   - Extract cluster names, URLs, roles, and passwords
+   - Auto-detect the group from the Jenkins job ID
+   - Show a preview of found clusters
+7. Review the preview and click **✅ Import Clusters**
+
+**Supported Jenkins Job Formats:**
+- Console output with `KEY=VALUE` format (e.g., `HUB_URL=https://...`, `HUB_PASSWORD=xxx`)
+- Build parameters with cluster credentials
+- Artifacts containing cluster configuration
+- Nested domain structures (e.g., `console.apps.X.apps.Y`)
+- Multiple quote layers automatically stripped
+
+**Debug Mode:**
+Enable "🐛 Debug mode" checkbox to see detailed parsing logs and troubleshoot import issues.
+
+> **Tip:** The Jenkins Import feature is perfect for QE teams who deploy clusters via Jenkins and want to quickly import all credentials without manual copy-paste.
+
+### Pinning Clusters **(New in v2.2)**
+
+Click the ☆ star icon on any cluster card to pin it to the top of your list. Pinned clusters show a ⭐ icon and always appear first, followed by recently used clusters.
+
+### Tags and Notes **(New in v2.2)**
+
+**Tags:**
+- Add up to 3 visible tags per cluster (e.g., `#production`, `#important`, `#test`)
+- Tags appear as colored badges on cluster cards
+- Use tags to categorize and organize clusters
+
+**Notes:**
+- Add free-form notes about each cluster
+- Click the 📝 notes icon to view/edit notes
+- Perfect for documenting cluster purpose, contacts, or special configuration
 
 ### Search & Filter
 
@@ -180,7 +241,10 @@ Click the **📂 Import** tab, then drag and drop a file onto the drop zone — 
     "user": "kubeadmin",
     "password": "xxxxx-xxxxx-xxxxx",
     "role": "hub",
-    "group": "jenkins-job-12345"
+    "group": "jenkins-job-12345",
+    "tags": ["production", "important"],
+    "notes": "Primary ACM hub for production workloads",
+    "pinned": true
   },
   {
     "name": "mycluster-c1",
@@ -188,7 +252,8 @@ Click the **📂 Import** tab, then drag and drop a file onto the drop zone — 
     "user": "kubeadmin",
     "password": "xxxxx-xxxxx-xxxxx",
     "role": "primary",
-    "group": "jenkins-job-12345"
+    "group": "jenkins-job-12345",
+    "tags": ["production"]
   },
   {
     "name": "mycluster-c2",
@@ -237,6 +302,10 @@ clusters:
 | `password` | ✅ Yes | Login password | `"xxxxx-xxxxx-xxxxx"` |
 | `role` | ⚪ Optional | Cluster role (see valid values below) | `"hub"` |
 | `group` | ⚪ Optional | Group identifier (clusters with same value are grouped) | `"jenkins-job-12345"` |
+| `tags` | ⚪ Optional | Array of tags for categorization **(New in v2.2)** | `["production", "important"]` |
+| `notes` | ⚪ Optional | Free-form notes about the cluster **(New in v2.2)** | `"Primary datacenter cluster"` |
+| `pinned` | ⚪ Optional | Pin cluster to top of list **(New in v2.2)** | `true` |
+| `lastLogin` | ⚪ Optional | Timestamp of last login (auto-managed) **(New in v2.2)** | `1709123456789` |
 
 ### Valid `role` values
 
@@ -248,7 +317,7 @@ clusters:
 | `secondary` | Secondary managed cluster (C2) |
 | `unknown` | Role not specified |
 
-> **Note:** Both `role` and `group` fields are optional. If `role` is omitted, the extension will auto-detect based on the cluster name and URL. If `group` is omitted, clusters are displayed individually.
+> **Note:** Optional fields (`role`, `group`, `tags`, `notes`, `pinned`) can be omitted. If `role` is omitted, the extension will auto-detect based on the cluster name and URL. If `group` is omitted, clusters are displayed individually. The `lastLogin` field is automatically managed by the extension.
 
 ### RDR Cluster Grouping
 
@@ -266,6 +335,8 @@ This is particularly useful for RDR (Regional Disaster Recovery) setups where yo
 
 All settings are available in the **⚙️ Settings** tab:
 
+### Auto-Login Behaviour
+
 | Setting | Default | Description |
 |---|---|---|
 | 🤖 **Auto-detect & Login** | Off | Automatically triggers when an OpenShift login page is detected |
@@ -273,6 +344,12 @@ All settings are available in the **⚙️ Settings** tab:
 | 🆕 **Open in new tab** | On | Opens the cluster console in a new tab when logging in manually |
 | 🔙 **Open tabs in background** | On | Keep current tab active when opening multiple clusters (Login All) |
 | ⏱️ **Sequential login (1s delay)** | Off | Open clusters one by one with 1 second delay instead of all at once |
+
+### Appearance **(New in v2.2)**
+
+| Setting | Default | Description |
+|---|---|---|
+| 📐 **Popup Size** | Normal (450px) | Adjust extension popup width: Compact (340px), Normal (450px), Large (600px), or X-Large (750px) |
 
 ### Recommended Settings
 
@@ -306,6 +383,21 @@ For auto-detection:
 - Click **▶** chevron to expand/collapse groups
 - **⚡ Login All** button opens all clusters in group
 - Visual role summary shows all cluster types in group
+- **Color-coded** **(New in v2.2)**: Each group has a consistent color based on its name
+
+### Cluster Organization **(New in v2.2)**
+- **Pin/Favorite**: Click ☆ to pin important clusters to the top (⭐ shows pinned)
+- **Last Login**: See when you last accessed each cluster (e.g., "2h ago", "3d ago")
+- **Tags**: Add colored tag badges for quick categorization (#production, #test)
+- **Notes**: Add free-form notes accessible via 📝 icon
+- **Smart Sorting**: Clusters automatically sort by: pinned → recently used → alphabetical
+
+### Adjustable Popup Size **(New in v2.2)**
+- Choose from 4 sizes in Settings → Appearance
+- **Compact** (340px) - Original size
+- **Normal** (450px) - Default, 32% larger
+- **Large** (600px) - Spacious layout
+- **X-Large** (750px) - Maximum width
 
 ---
 
@@ -526,6 +618,19 @@ To modify the extension and test your changes:
 | Enhanced `isOpenShiftLoginPage()` | Better OAuth and IDP page detection |
 | Certificate handling in `waitForTabAndLogin()` | Tracks cert errors, waits for acceptance, auto-resumes login |
 
+### Functions added in v2.2
+
+| Function | Purpose |
+|---|---|
+| `formatRelativeTime()` | Converts timestamp to relative time string (e.g., "2h ago") |
+| `getGroupColor()` | Returns consistent color scheme for group based on hash |
+| `applyPopupSize()` | Dynamically adjusts popup width based on setting |
+| Jenkins import functions | Parse Jenkins console output, artifacts, and build parameters |
+| `parseJenkinsParameters()` | Extract cluster credentials from Jenkins build parameters |
+| `parseJenkinsConsoleOutput()` | Parse console output for cluster info |
+| `extractPasswordsFromDescription()` | Extract passwords from Jenkins HTML descriptions |
+| `createClustersWithPasswords()` | Build cluster objects with custom group names |
+
 ### Functions added in v2.0
 
 | Function | Purpose |
@@ -570,6 +675,21 @@ Chrome's security model prevents extensions from bypassing SSL certificate warni
 ### What's the default username when adding a cluster?
 **New in v2.1:** The username field defaults to "kubeadmin" when you click Add Cluster. You can change it to any username you need.
 
+### How does Jenkins Import work?
+**New in v2.2:** Paste a Jenkins job URL into the Import tab. The extension fetches the console output and artifacts, extracts cluster credentials, and auto-groups them by Jenkins job ID. Perfect for QE teams deploying clusters via Jenkins.
+
+### How do I pin a cluster to the top?
+**New in v2.2:** Click the ☆ star icon on any cluster card. Pinned clusters show ⭐ and always appear first in your list.
+
+### What are tags and notes used for?
+**New in v2.2:** Tags are quick labels (like #production, #test) that appear as colored badges. Notes are free-form text for documenting cluster details. Both help organize and categorize your clusters.
+
+### Can I change the popup size?
+**New in v2.2:** Yes! Go to Settings → Appearance → Popup Size. Choose from Compact (340px), Normal (450px), Large (600px), or X-Large (750px).
+
+### What does "Last Login" show?
+**New in v2.2:** Shows when you last accessed each cluster in relative time (e.g., "2h ago", "3d ago"). Helps you track which clusters you've recently used.
+
 ## 🎯 Tips & Tricks
 
 ### Organizing Your Clusters
@@ -577,7 +697,18 @@ Chrome's security model prevents extensions from bypassing SSL certificate warni
 1. **Use meaningful names**: Instead of "Cluster 1", use "Prod Hub" or "Staging C1"
 2. **Group related clusters**: Use the same `group` value for RDR cluster sets
 3. **Leverage role detection**: Add explicit `role` fields for accurate badge colors
-4. **Reorder strategically**: Drag frequently-used clusters to the top
+4. **Pin important clusters**: Click ☆ on frequently-used clusters to pin them to the top
+5. **Add tags**: Use tags like #production, #staging, #test for quick visual categorization
+6. **Document with notes**: Add notes about cluster purpose, contacts, or special config
+
+### Jenkins Import Tips **(New in v2.2)**
+
+1. **Use full job URLs**: Include the job number (e.g., `/job/qe-rdr-setup/4073/`)
+2. **Enable debug mode**: Check "🐛 Debug mode" to see detailed parsing logs
+3. **Custom group names**: Override the auto-detected group name for better organization
+4. **Authenticated jobs**: Provide Jenkins username and API token for private jobs
+5. **Review before import**: Always check the preview to verify detected clusters
+6. **Nested domains**: The parser handles complex nested domain structures automatically
 
 ### Working with Self-Signed Certificates (v2.1)
 
@@ -627,6 +758,15 @@ For Regional Disaster Recovery environments with Hub + C1 + C2:
 ## 🤝 Contributing
 
 Contributions are welcome! Ideas for future improvements:
+
+**Completed in v2.2:**
+- [x] Jenkins Import - automatic cluster fetching from Jenkins jobs
+- [x] Pin/Favorite clusters
+- [x] Last login timestamp tracking
+- [x] Color-coded groups
+- [x] Tags and notes for cluster organization
+- [x] Adjustable popup size
+- [x] Enhanced import preview with auto-scroll
 
 **Completed in v2.1:**
 - [x] SSL certificate warning detection and handling
