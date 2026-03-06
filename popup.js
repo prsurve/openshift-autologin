@@ -438,13 +438,15 @@ function editCluster(index, cluster, clusters) {
   saveBtn.replaceWith(saveBtn.cloneNode(true)); // Remove old event listeners
   document.getElementById("edit-save-btn").addEventListener("click", () => {
     const name = document.getElementById("e-name").value.trim();
-    const url = document.getElementById("e-url").value.trim();
+    const rawUrl = document.getElementById("e-url").value.trim();
     const user = document.getElementById("e-user").value.trim();
     const password = document.getElementById("e-password").value;
     const role = document.getElementById("e-role").value.trim();
     const group = document.getElementById("e-group").value.trim();
     const tagsInput = document.getElementById("e-tags").value.trim();
     const notes = document.getElementById("e-notes").value.trim();
+
+    const url = normalizeURL(rawUrl);
 
     if (!name || !url || !user || !password) {
       showStatus("error", "❌ All fields are required");
@@ -970,6 +972,12 @@ function extractDomain(url) {
   try { return new URL(url).hostname; } catch { return url; }
 }
 
+function normalizeURL(url) {
+  if (!url || typeof url !== 'string') return url;
+  // Remove trailing slash from URL
+  return url.replace(/\/$/, '');
+}
+
 function isLoginPage(url) {
   return url.includes("/login") || url.includes("oauth") || url.includes("inputUsername");
 }
@@ -1201,13 +1209,15 @@ document.getElementById("test-connection-btn").addEventListener("click", () => {
 
 document.getElementById("save-btn").addEventListener("click", () => {
   const name     = document.getElementById("f-name").value.trim();
-  const url      = document.getElementById("f-url").value.trim();
+  const rawUrl   = document.getElementById("f-url").value.trim();
   const user     = document.getElementById("f-user").value.trim();
   const password = document.getElementById("f-password").value;
   const role     = document.getElementById("f-role").value.trim();
   const group    = document.getElementById("f-group").value.trim();
   const tagsInput = document.getElementById("f-tags").value.trim();
   const notes    = document.getElementById("f-notes").value.trim();
+
+  const url = normalizeURL(rawUrl);
 
   if (!name || !url || !user || !password) {
     showStatus("error", "❌ All fields are required");
@@ -1572,7 +1582,7 @@ function parseJSON(content) {
 
   return arr.map(c => ({
     name:     c.name     || c.cluster_name  || c.clusterName  || "Unknown",
-    url:      c.url      || c.console_url   || c.consoleUrl   || "",
+    url:      normalizeURL(c.url || c.console_url || c.consoleUrl || ""),
     user:     c.user     || c.username      || c.user_name    || "",
     password: c.password || c.pass         || c.pwd          || "",
     role:     c.role     || "",
@@ -1608,7 +1618,7 @@ function parseYAML(content) {
         const key = match[1].toLowerCase();
         const val = match[2].replace(/['"]/g, "").trim();
         if (key === "name")     current.name     = val;
-        if (key === "url")      current.url      = val;
+        if (key === "url")      current.url      = normalizeURL(val);
         if (key === "user" || key === "username") current.user = val;
         if (key === "password" || key === "pass" || key === "pwd") current.password = val;
         if (key === "role")     current.role     = val;
@@ -1651,7 +1661,7 @@ function parseEnv(content) {
     if (url && user && pass) {
       clusters.push({
         name:     vars[`${prefix}_NAME`] || prefix.charAt(0) + prefix.slice(1).toLowerCase(),
-        url,
+        url: normalizeURL(url),
         user,
         password: pass,
       });
@@ -1973,6 +1983,7 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
             // Get cluster names and types from CLUSTERS_CONFIGURATION if available
             let clusterNames = [];
             let clusterRoles = [];
+            let extractedUrls = {}; // Map cluster names to their full console URLs
 
             // Extract from params if we have them
             if (buildInfo.actions) {
@@ -1989,7 +2000,8 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
                         const clustersConfig = JSON.parse(configStr);
 
                         for (const cluster of clustersConfig) {
-                          clusterNames.push(cluster.CLUSTER_NAME || `cluster-${clusterNames.length}`);
+                          const clusterName = cluster.CLUSTER_NAME || `cluster-${clusterNames.length}`;
+                          clusterNames.push(clusterName);
 
                           // Map cluster type to role
                           const clusterType = cluster.CLUSTER_TYPE || '';
@@ -2002,6 +2014,15 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
                             'C2': 'secondary'
                           };
                           clusterRoles.push(typeMap[clusterType] || 'unknown');
+
+                          // Also extract console URL if present in CLUSTERS_CONFIGURATION
+                          const clusterUrl = cluster.CONSOLE_URL || cluster.console_url ||
+                                           cluster.CLUSTER_URL || cluster.cluster_url ||
+                                           cluster.URL || cluster.url;
+                          if (clusterUrl) {
+                            extractedUrls[clusterName.toLowerCase()] = normalizeURL(clusterUrl);
+                            debugLog(`[Step 1c]   Found console URL in CLUSTERS_CONFIGURATION: ${extractedUrls[clusterName.toLowerCase()]} (cluster: ${clusterName})`);
+                          }
                         }
 
                         debugLog(`[Step 1c] Extracted ${clusterNames.length} cluster names from CLUSTERS_CONFIGURATION`);
@@ -2015,6 +2036,59 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
                     }
                   }
                 }
+              }
+            }
+
+            // Extract console URLs from description (do this ALWAYS, not just when cluster names are missing)
+            if (kubeconfigPaths.length > 0 && buildInfo.description) {
+              debugLog(`[Step 1c] Extracting console URLs from description...`);
+
+              let urlsFoundInDescription = 0;
+
+              // First, extract console URLs from href attributes BEFORE stripping HTML
+              const hrefRegex = /href=["']([^"']*console-openshift-console\.apps\.[^"']*)["']/gi;
+              let hrefMatch;
+              while ((hrefMatch = hrefRegex.exec(buildInfo.description)) !== null) {
+                const fullUrl = hrefMatch[1];
+                // Extract cluster name from URL
+                const urlMatch = fullUrl.match(/console-openshift-console\.apps\.([a-zA-Z0-9_-]+)\./);
+                if (urlMatch && urlMatch[1]) {
+                  const clusterNameFromUrl = urlMatch[1].toLowerCase();
+                  if (!extractedUrls[clusterNameFromUrl]) {
+                    extractedUrls[clusterNameFromUrl] = normalizeURL(fullUrl);
+                    debugLog(`[Step 1c]   ✅ Found in HTML href: ${extractedUrls[clusterNameFromUrl]} → cluster: ${clusterNameFromUrl}`);
+                    urlsFoundInDescription++;
+                  }
+                }
+              }
+
+              // Extract cluster names and URLs from plain text
+              const descText = buildInfo.description
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&nbsp;/g, ' ')
+                .trim();
+
+              // Extract console URLs from plain text (Web Console: https://...)
+              const plainTextUrlRegex = /https?:\/\/console-openshift-console\.apps\.([\w.-]+)/g;
+              let plainUrlMatch;
+              while ((plainUrlMatch = plainTextUrlRegex.exec(descText)) !== null) {
+                const fullDomain = plainUrlMatch[1];
+                const fullUrl = `https://console-openshift-console.apps.${fullDomain}`;
+                const clusterNameFromUrl = fullDomain.split('.')[0].toLowerCase();
+                if (clusterNameFromUrl.length >= 2) {
+                  if (!extractedUrls[clusterNameFromUrl]) {
+                    extractedUrls[clusterNameFromUrl] = normalizeURL(fullUrl);
+                    debugLog(`[Step 1c]   ✅ Found in plain text: ${extractedUrls[clusterNameFromUrl]} → cluster: ${clusterNameFromUrl}`);
+                    urlsFoundInDescription++;
+                  }
+                }
+              }
+
+              if (urlsFoundInDescription > 0) {
+                debugLog(`[Step 1c] Extracted ${urlsFoundInDescription} console URL(s) from description`);
+              } else {
+                debugLog(`[Step 1c] ⚠️  No console URLs found in description`);
               }
             }
 
@@ -2058,13 +2132,32 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
 
                 // Try extracting from URLs (Web Console, kubeconfig paths, logs)
                 if (!clusterName) {
-                  // Pattern 1: console-openshift-console.apps.CLUSTERNAME.domain.com
-                  const consoleUrlMatch = line.match(/console-openshift-console\.apps\.([a-zA-Z0-9_-]+)\./);
-                  if (consoleUrlMatch && consoleUrlMatch[1].length >= 2) {
-                    clusterName = consoleUrlMatch[1];
+                  // Pattern 1: Extract full console URL - https://console-openshift-console.apps.CLUSTERNAME.DOMAIN
+                  // Match domain (letters, numbers, dots, hyphens, underscores)
+                  const fullConsoleUrlMatch = line.match(/https?:\/\/console-openshift-console\.apps\.([\w.-]+)/);
+                  if (fullConsoleUrlMatch) {
+                    const fullDomain = fullConsoleUrlMatch[1]; // e.g., "dshelar-f17-h.ibmcloud2.qe.rh-ocs.com"
+                    const fullUrl = `https://console-openshift-console.apps.${fullDomain}`;
+
+                    // Extract cluster name from the domain (first segment after apps.)
+                    const domainParts = fullDomain.split('.');
+                    if (domainParts.length > 0 && domainParts[0].length >= 2) {
+                      clusterName = domainParts[0];
+                      // Store the full console URL
+                      extractedUrls[clusterName.toLowerCase()] = normalizeURL(fullUrl);
+                      debugLog(`[Step 1c]   Extracted full console URL from text: ${extractedUrls[clusterName.toLowerCase()]} (cluster: ${clusterName})`);
+                    }
                   }
 
-                  // Pattern 2: /openshift-clusters/CLUSTERNAME/
+                  // Pattern 2: Just cluster name from console URL (fallback)
+                  if (!clusterName) {
+                    const consoleUrlMatch = line.match(/console-openshift-console\.apps\.([a-zA-Z0-9_-]+)\./);
+                    if (consoleUrlMatch && consoleUrlMatch[1].length >= 2) {
+                      clusterName = consoleUrlMatch[1];
+                    }
+                  }
+
+                  // Pattern 3: /openshift-clusters/CLUSTERNAME/
                   if (!clusterName) {
                     const clusterPathMatch = line.match(/\/openshift-clusters\/([a-zA-Z0-9_-]+)\//);
                     if (clusterPathMatch && clusterPathMatch[1].length >= 2) {
@@ -2140,6 +2233,16 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
               }
             }
 
+            // Show summary of extracted URLs
+            if (Object.keys(extractedUrls).length > 0) {
+              debugLog(`[Step 1c] 📋 Console URL Summary:`);
+              for (const [clusterName, url] of Object.entries(extractedUrls)) {
+                debugLog(`[Step 1c]   • ${clusterName} → ${url}`);
+              }
+            } else {
+              debugLog(`[Step 1c] ⚠️  No console URLs extracted - will use default domain for all clusters`);
+            }
+
             // Parse passwords from description text
             debugLog(`[Step 1c] Parsing passwords from description text...`);
             const passwordsFromDescription = extractPasswordsFromDescription(buildInfo.description, debugLog);
@@ -2152,7 +2255,8 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
               passwordsFromDescription,
               jenkinsUrl,
               debugLog,
-              customGroupName
+              customGroupName,
+              extractedUrls  // Pass the extracted console URLs
             );
 
             if (extractedClusters.length > 0) {
@@ -2447,7 +2551,7 @@ function extractPasswordsFromDescription(htmlDescription, debugLog = console.log
 }
 
 // ── Create clusters using extracted passwords ────
-function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenkinsUrl, debugLog = console.log, customGroupName = '') {
+function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenkinsUrl, debugLog = console.log, customGroupName = '', extractedUrls = {}) {
   const results = [];
   const jobIdMatch = jenkinsUrl.match(/\/job\/([^\/]+)\/(\d+)/);
   const autoGroupId = jobIdMatch ? jobIdMatch[2] : null;
@@ -2458,6 +2562,16 @@ function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenk
   debugLog(`[Cluster Builder] Creating ${clusterNames.length} cluster(s) with passwords...`);
   debugLog(`[Cluster Builder] Expected clusters: ${clusterNames.join(', ')}`);
   debugLog(`[Cluster Builder] Available passwords: ${Object.keys(passwords).join(', ')}`);
+
+  if (Object.keys(extractedUrls).length > 0) {
+    debugLog(`[Cluster Builder] 📍 Console URLs available for ${Object.keys(extractedUrls).length} cluster(s):`);
+    for (const [name, url] of Object.entries(extractedUrls)) {
+      debugLog(`[Cluster Builder]   ✅ ${name} → ${url}`);
+    }
+  } else {
+    debugLog(`[Cluster Builder] ⚠️  No console URLs extracted - will construct URLs with default domain`);
+  }
+
   if (customGroupName) {
     debugLog(`[Cluster Builder] Using custom group name: "${customGroupName}"`);
   } else if (autoGroupId) {
@@ -2487,12 +2601,43 @@ function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenk
     }
 
     if (password) {
-      // Construct console URL from cluster name
-      const consoleUrl = `https://console-openshift-console.apps.${clusterName}.qe.rh-ocs.com`;
+      // Use extracted console URL if available, otherwise construct one
+      // Try lowercase cluster name and variations with dashes/underscores
+      const lowerName = clusterName.toLowerCase();
+      let consoleUrl = null;
+      let urlSource = '';
+
+      // Priority 1: Exact match
+      if (extractedUrls[lowerName]) {
+        consoleUrl = extractedUrls[lowerName];
+        urlSource = 'extracted (exact match)';
+      }
+      // Priority 2: With dashes instead of underscores
+      else if (extractedUrls[lowerName.replace(/_/g, '-')]) {
+        consoleUrl = extractedUrls[lowerName.replace(/_/g, '-')];
+        urlSource = 'extracted (dash variation)';
+      }
+      // Priority 3: With underscores instead of dashes
+      else if (extractedUrls[lowerName.replace(/-/g, '_')]) {
+        consoleUrl = extractedUrls[lowerName.replace(/-/g, '_')];
+        urlSource = 'extracted (underscore variation)';
+      }
+      // Priority 4: Construct with default domain
+      else {
+        consoleUrl = `https://console-openshift-console.apps.${clusterName}.qe.rh-ocs.com`;
+        urlSource = 'constructed (default domain)';
+      }
+
+      debugLog(`  → Console URL: ${consoleUrl}`);
+      debugLog(`  → Source: ${urlSource}`);
+      if (!urlSource.startsWith('extracted')) {
+        debugLog(`  ⚠️  Using default domain - no URL found in: CLUSTERS_CONFIGURATION, description, or environment variables`);
+        debugLog(`  →  Available extracted URLs: ${Object.keys(extractedUrls).join(', ') || 'none'}`);
+      }
 
       const cluster = {
         name: clusterName,
-        url: consoleUrl,
+        url: normalizeURL(consoleUrl),
         user: 'kubeadmin',
         password: password,
         role: clusterRole
@@ -2664,7 +2809,7 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
         const clusterType = clusterObj.CLUSTER_TYPE || clusterObj.type || "";
 
         // Check multiple possible field names for credentials
-        const url = clusterObj.CONSOLE_URL || clusterObj.console_url ||
+        const rawUrl = clusterObj.CONSOLE_URL || clusterObj.console_url ||
                    clusterObj.CLUSTER_URL || clusterObj.cluster_url ||
                    clusterObj.URL || clusterObj.url ||
                    clusterObj.API_URL || clusterObj.api_url;
@@ -2678,6 +2823,8 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
                         clusterObj.PASSWORD || clusterObj.password ||
                         clusterObj.PASS || clusterObj.pass ||
                         clusterObj.KUBEADMIN_PASSWORD || clusterObj.kubeadmin_password;
+
+        const url = normalizeURL(rawUrl);
 
         debugLog(`  → URL: ${url || 'NOT FOUND'}`);
         debugLog(`  → User: ${user || 'NOT FOUND'}`);
@@ -2764,7 +2911,7 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
     const name = params[`${prefix}_NAME`] || params[`${prefix}_CLUSTER_NAME`] ||
                  params[`${prefix}_CLUSTER`] || prefix.toLowerCase().replace(/_/g, '-');
 
-    const url = params[`${prefix}_URL`] || params[`${prefix}_CONSOLE_URL`] ||
+    const rawUrl = params[`${prefix}_URL`] || params[`${prefix}_CONSOLE_URL`] ||
                params[`${prefix}_CONSOLE`] || params[`${prefix}_API_URL`];
 
     const user = params[`${prefix}_USER`] || params[`${prefix}_USERNAME`] ||
@@ -2774,6 +2921,8 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
                     params[`${prefix}_PWD`] || params[`${prefix}_ADMIN_PASSWORD`];
 
     const role = params[`${prefix}_ROLE`] || params[`${prefix}_TYPE`];
+
+    const url = normalizeURL(rawUrl);
 
     debugLog(`[Param Parser] Checking prefix "${prefix}":`);
     debugLog(`  → URL: ${url || 'NOT FOUND'}`);
@@ -2980,13 +3129,15 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
         for (const prefix of prefixes) {
           const name = vars[`${prefix}_NAME`] || vars[`${prefix}_CLUSTER_NAME`] ||
                        vars[`${prefix}_CLUSTER`] || prefix.toLowerCase().replace(/_/g, '-');
-          const url = vars[`${prefix}_URL`] || vars[`${prefix}_CONSOLE_URL`] ||
+          const rawUrl = vars[`${prefix}_URL`] || vars[`${prefix}_CONSOLE_URL`] ||
                      vars[`${prefix}_CONSOLE`] || vars[`${prefix}_API_URL`];
           const user = vars[`${prefix}_USER`] || vars[`${prefix}_USERNAME`] ||
                       vars[`${prefix}_ADMIN`] || vars[`${prefix}_ADMIN_USER`];
           const password = vars[`${prefix}_PASSWORD`] || vars[`${prefix}_PASS`] ||
                           vars[`${prefix}_PWD`] || vars[`${prefix}_ADMIN_PASSWORD`];
           const role = vars[`${prefix}_ROLE`] || vars[`${prefix}_TYPE`];
+
+          const url = normalizeURL(rawUrl);
 
           if (url && user && password) {
             if (isOpenShiftClusterURL(url)) {
@@ -3022,10 +3173,12 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
 
             for (const obj of arr) {
               if (obj && typeof obj === 'object') {
-                const url = obj.url || obj.console_url || obj.consoleUrl || obj.api_url;
+                const rawUrl = obj.url || obj.console_url || obj.consoleUrl || obj.api_url;
                 const user = obj.user || obj.username || obj.admin || obj.admin_user;
                 const password = obj.password || obj.pass || obj.pwd || obj.admin_password;
                 const name = obj.name || obj.cluster_name || obj.clusterName || "Cluster";
+
+                const url = normalizeURL(rawUrl);
 
                 if (url && user && password) {
                   if (isOpenShiftClusterURL(url)) {
@@ -3062,7 +3215,7 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
 
         let match;
         while ((match = blockRegex.exec(text)) !== null) {
-          const url = match[2].trim();
+          const url = normalizeURL(match[2].trim());
           if (isOpenShiftClusterURL(url)) {
             const cluster = {
               name: match[1].trim(),
@@ -3094,7 +3247,7 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
 
         let match;
         while ((match = loginRegex.exec(text)) !== null) {
-          const url = match[1].trim();
+          const url = normalizeURL(match[1].trim());
           if (isOpenShiftClusterURL(url)) {
             const cluster = {
               name: "Cluster",
