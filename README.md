@@ -4,12 +4,20 @@
 
 **Perfect for:** QE teams, OpenShift administrators, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-2.2-red)
+![Version](https://img.shields.io/badge/version-2.3-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v2.2:**
+**New in v2.3:**
+- 🔗 **Smart URL Preservation** - Jenkins import now preserves full console URLs with complete domains (e.g., `.abcd.xyz.pqr.com`)
+- 📍 **Dynamic URL Extraction** - Automatically extracts console URLs from multiple sources: CLUSTERS_CONFIGURATION, Jenkins description HTML, plain text, and environment variables
+- ✂️ **URL Normalization** - Automatically removes trailing slashes from imported and manually entered URLs
+- 🚀 **Auto-Login by Default** - Auto-login now enabled by default for new installations
+- ⚡ **Instant Login** - Confirmation prompts disabled by default for faster workflow
+- 🔍 **Enhanced Debug Output** - Clear logging shows URL sources and extraction priority
+
+**v2.2 Features:**
 - 🔧 **Jenkins Import** - Automatically fetch cluster credentials from Jenkins jobs
 - ⭐ **Pin/Favorite** - Pin important clusters to the top of your list
 - ⏱️ **Last Login Timestamp** - See when you last logged into each cluster (e.g., "2h ago")
