@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OpenShift Auto-Login",
-  "version": "2.2",
+  "version": "2.3",
   "description": "Auto-login to multiple OpenShift clusters manually or automatically",
   "permissions": [
     "storage",
