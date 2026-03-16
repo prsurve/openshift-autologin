@@ -4,12 +4,21 @@
 
 **Perfect for:** QE teams, OpenShift administrators, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-2.3-red)
+![Version](https://img.shields.io/badge/version-2.3.1-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v2.3:**
+**New in v2.3.1:**
+- 🧹 **Selective Cache Management** - Clear browser cache/cookies without deleting cluster credentials from extension
+- 🔐 **Auto-Capture Credentials** - Automatically captures and pre-fills username/password when you manually login to new clusters
+- 💾 **Smart Credential Storage** - Uses chrome.storage.local to persist captured credentials across OAuth redirects
+- ⏰ **Credential Expiration** - Captured credentials expire after 2 minutes for security
+- ✨ **Visual Feedback** - Clear indication when credentials are pre-filled in save form
+- 🎯 **Filter-Based Selection** - Select clusters by domain or group for both cache clearing and deletion
+- 🚀 **Streamlined Workflow** - Add new clusters faster with automatic credential capture and pre-fill
+
+**v2.3 Features:**
 - 🔗 **Smart URL Preservation** - Jenkins import now preserves full console URLs with complete domains (e.g., `.abcd.xyz.pqr.com`)
 - 📍 **Dynamic URL Extraction** - Automatically extracts console URLs from multiple sources: CLUSTERS_CONFIGURATION, Jenkins description HTML, plain text, and environment variables
 - ✂️ **URL Normalization** - Automatically removes trailing slashes from imported and manually entered URLs
