@@ -1300,6 +1300,412 @@ document.getElementById("popup-size-select").addEventListener("change", e => {
   saveSetting("popupSize", size);
 });
 
+// ── Data Management ───────────────────────────────────
+// Extract domain from URL
+function extractBaseDomain(url) {
+  try {
+    const hostname = new URL(url).hostname;
+    // For OpenShift clusters: console-openshift-console.apps.CLUSTERNAME.DOMAIN
+    // We want to extract the base domain after the cluster name
+    const parts = hostname.split('.');
+    if (parts.length > 2) {
+      // Return last 2-3 parts as the base domain
+      // e.g., "ibmcloud2.qe.rh-ocs.com" or "qe.rh-ocs.com"
+      return parts.slice(-3).join('.');
+    }
+    return hostname;
+  } catch {
+    return url;
+  }
+}
+
+// Populate filter dropdowns (for both cache clearing and deletion)
+function populateFilterDropdowns() {
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    const domains = new Map();
+    const groups = new Map();
+
+    clusters.forEach(c => {
+      if (c.url) {
+        const domain = extractBaseDomain(c.url);
+        domains.set(domain, (domains.get(domain) || 0) + 1);
+      }
+      if (c.group && c.group.trim()) {
+        const group = c.group.trim();
+        groups.set(group, (groups.get(group) || 0) + 1);
+      }
+    });
+
+    // Populate delete filter dropdowns
+    const domainSelect = document.getElementById("filter-domain-select");
+    if (domainSelect) {
+      domainSelect.innerHTML = '<option value="">All domains...</option>';
+      Array.from(domains.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .forEach(([domain, count]) => {
+          const option = document.createElement("option");
+          option.value = domain;
+          option.textContent = `${domain} (${count})`;
+          domainSelect.appendChild(option);
+        });
+    }
+
+    const groupSelect = document.getElementById("filter-group-select");
+    if (groupSelect) {
+      groupSelect.innerHTML = '<option value="">All groups...</option>';
+      Array.from(groups.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .forEach(([group, count]) => {
+          const option = document.createElement("option");
+          option.value = group;
+          option.textContent = `${group} (${count})`;
+          groupSelect.appendChild(option);
+        });
+    }
+
+    // Populate cache filter dropdowns
+    const cacheDomainSelect = document.getElementById("cache-filter-domain-select");
+    if (cacheDomainSelect) {
+      cacheDomainSelect.innerHTML = '<option value="">All domains...</option>';
+      Array.from(domains.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .forEach(([domain, count]) => {
+          const option = document.createElement("option");
+          option.value = domain;
+          option.textContent = `${domain} (${count})`;
+          cacheDomainSelect.appendChild(option);
+        });
+    }
+
+    const cacheGroupSelect = document.getElementById("cache-filter-group-select");
+    if (cacheGroupSelect) {
+      cacheGroupSelect.innerHTML = '<option value="">All groups...</option>';
+      Array.from(groups.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .forEach(([group, count]) => {
+          const option = document.createElement("option");
+          option.value = group;
+          option.textContent = `${group} (${count})`;
+          cacheGroupSelect.appendChild(option);
+        });
+    }
+  });
+}
+
+// Render selective cluster list
+function renderSelectiveClusters() {
+  const filterDomain = document.getElementById("filter-domain-select").value;
+  const filterGroup = document.getElementById("filter-group-select").value;
+
+  if (!filterDomain && !filterGroup) {
+    document.getElementById("selective-cluster-list").innerHTML =
+      '<div style="font-size:11px;color:#666;text-align:center;padding:20px;">Select a domain or group to view clusters</div>';
+    updateDeleteButton();
+    return;
+  }
+
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    let filtered = clusters;
+
+    if (filterDomain) {
+      filtered = filtered.filter(c => extractBaseDomain(c.url) === filterDomain);
+    }
+
+    if (filterGroup) {
+      filtered = filtered.filter(c => c.group === filterGroup);
+    }
+
+    const listEl = document.getElementById("selective-cluster-list");
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div style="font-size:11px;color:#666;text-align:center;padding:20px;">No clusters match the selected filters</div>';
+      updateDeleteButton();
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(c => `
+      <div style="display:flex;align-items:center;padding:6px;border-bottom:1px solid #1a1a2a;">
+        <input type="checkbox" class="selective-delete-checkbox" data-cluster-url="${escapeHtml(c.url)}"
+               style="margin-right:8px;cursor:pointer;" />
+        <div style="flex:1;">
+          <div style="font-size:11px;color:#eee;font-weight:bold;">${escapeHtml(c.name)}</div>
+          <div style="font-size:9px;color:#666;">${escapeHtml(c.url)}</div>
+        </div>
+      </div>
+    `).join('');
+
+    // Add event listeners to checkboxes
+    document.querySelectorAll('.selective-delete-checkbox').forEach(cb => {
+      cb.addEventListener('change', updateDeleteButton);
+    });
+
+    updateDeleteButton();
+  });
+}
+
+// Update delete button state
+function updateDeleteButton() {
+  const checkboxes = document.querySelectorAll('.selective-delete-checkbox:checked');
+  const btn = document.getElementById("delete-selected-clusters-btn");
+  const count = checkboxes.length;
+
+  btn.textContent = `🗑️ Delete Selected (${count})`;
+  btn.disabled = count === 0;
+
+  if (count > 0) {
+    btn.style.background = '#5a1a1a';
+    btn.style.cursor = 'pointer';
+  } else {
+    btn.style.background = '#3a1a1a';
+    btn.style.cursor = 'not-allowed';
+  }
+}
+
+// Filter change handlers
+document.getElementById("filter-domain-select").addEventListener("change", renderSelectiveClusters);
+document.getElementById("filter-group-select").addEventListener("change", renderSelectiveClusters);
+
+// Select/Deselect all
+document.getElementById("select-all-filtered-btn").addEventListener("click", () => {
+  document.querySelectorAll('.selective-delete-checkbox').forEach(cb => cb.checked = true);
+  updateDeleteButton();
+});
+
+document.getElementById("deselect-all-filtered-btn").addEventListener("click", () => {
+  document.querySelectorAll('.selective-delete-checkbox').forEach(cb => cb.checked = false);
+  updateDeleteButton();
+});
+
+// Clear browser data for deleted cluster URLs
+async function clearClusterBrowserData(urls) {
+  if (!urls || urls.length === 0) return;
+
+  try {
+    // Extract origins from URLs
+    const origins = urls.map(url => {
+      try {
+        const urlObj = new URL(url);
+        return urlObj.origin;
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
+
+    if (origins.length === 0) return;
+
+    console.log(`[Clear Cache] Clearing browser data for ${origins.length} origin(s)`);
+
+    // Clear cache, cookies, and local storage for each origin
+    for (const origin of origins) {
+      await chrome.browsingData.remove(
+        { origins: [origin] },
+        {
+          cache: true,
+          cookies: true,
+          localStorage: true,
+          serviceWorkers: true
+        }
+      );
+      console.log(`[Clear Cache] Cleared data for ${origin}`);
+    }
+
+    console.log(`[Clear Cache] Successfully cleared browser data for all deleted clusters`);
+  } catch (error) {
+    console.error('[Clear Cache] Failed to clear browser data:', error);
+  }
+}
+
+// Delete selected clusters
+document.getElementById("delete-selected-clusters-btn").addEventListener("click", () => {
+  const checkboxes = document.querySelectorAll('.selective-delete-checkbox:checked');
+
+  if (checkboxes.length === 0) return;
+
+  const urlsToDelete = Array.from(checkboxes).map(cb => cb.dataset.clusterUrl);
+
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    const toDelete = clusters.filter(c => urlsToDelete.includes(c.url));
+    const clusterList = toDelete.map(c => `  • ${c.name}${c.group ? ` (${c.group})` : ''}`).join('\n');
+
+    // Check if we're deleting all clusters in any group
+    const groupsBeingDeleted = new Set(toDelete.filter(c => c.group).map(c => c.group));
+    const groupWarnings = [];
+
+    groupsBeingDeleted.forEach(group => {
+      const totalInGroup = clusters.filter(c => c.group === group).length;
+      const deletingInGroup = toDelete.filter(c => c.group === group).length;
+
+      if (totalInGroup === deletingInGroup) {
+        groupWarnings.push(`⚠️ ALL clusters in group "${group}" will be deleted (${totalInGroup} cluster${totalInGroup > 1 ? 's' : ''})`);
+      }
+    });
+
+    let confirmMessage = `⚠️ Delete ${toDelete.length} cluster(s)?\n\nClusters to be deleted:\n${clusterList}`;
+
+    if (groupWarnings.length > 0) {
+      confirmMessage += `\n\n${groupWarnings.join('\n')}`;
+    }
+
+    confirmMessage += '\n\nThis cannot be undone.';
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    const filtered = clusters.filter(c => !urlsToDelete.includes(c.url));
+
+    chrome.storage.local.set({ clusters: filtered }, () => {
+      loadClusters();
+      populateFilterDropdowns();
+      renderSelectiveClusters();
+      showStatus("success", `✅ Deleted ${toDelete.length} cluster(s)`);
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+// CACHE MANAGEMENT (Clear cache WITHOUT deleting cluster)
+// ═══════════════════════════════════════════════════════
+
+// Render cache cluster list
+function renderCacheClusters() {
+  const filterDomain = document.getElementById("cache-filter-domain-select")?.value;
+  const filterGroup = document.getElementById("cache-filter-group-select")?.value;
+
+  const listEl = document.getElementById("cache-cluster-list");
+  if (!listEl) return;
+
+  if (!filterDomain && !filterGroup) {
+    listEl.innerHTML = '<div style="font-size:11px;color:#666;text-align:center;padding:20px;">Select a domain or group to view clusters</div>';
+    updateCacheClearButton();
+    return;
+  }
+
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    let filtered = clusters;
+
+    if (filterDomain) {
+      filtered = filtered.filter(c => extractBaseDomain(c.url) === filterDomain);
+    }
+
+    if (filterGroup) {
+      filtered = filtered.filter(c => c.group === filterGroup);
+    }
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div style="font-size:11px;color:#666;text-align:center;padding:20px;">No clusters match the selected filters</div>';
+      updateCacheClearButton();
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(c => `
+      <div style="display:flex;align-items:center;padding:6px;border-bottom:1px solid #1a1a2a;">
+        <input type="checkbox" class="cache-clear-checkbox" data-cluster-url="${escapeHtml(c.url)}"
+               style="margin-right:8px;cursor:pointer;" />
+        <div style="flex:1;">
+          <div style="font-size:11px;color:#eee;font-weight:bold;">${escapeHtml(c.name)}</div>
+          <div style="font-size:9px;color:#666;">${escapeHtml(c.url)}</div>
+        </div>
+      </div>
+    `).join('');
+
+    // Add event listeners to checkboxes
+    document.querySelectorAll('.cache-clear-checkbox').forEach(cb => {
+      cb.addEventListener('change', updateCacheClearButton);
+    });
+
+    updateCacheClearButton();
+  });
+}
+
+// Update clear cache button state
+function updateCacheClearButton() {
+  const checkboxes = document.querySelectorAll('.cache-clear-checkbox:checked');
+  const btn = document.getElementById("clear-cache-btn");
+  if (!btn) return;
+
+  const count = checkboxes.length;
+
+  btn.textContent = `🧹 Clear Cache for Selected (${count})`;
+  btn.disabled = count === 0;
+
+  if (count > 0) {
+    btn.style.background = '#1a3a3a';
+    btn.style.cursor = 'pointer';
+  } else {
+    btn.style.background = '#0a2a2a';
+    btn.style.cursor = 'not-allowed';
+  }
+}
+
+// Cache filter change handlers
+const cacheDomainSelect = document.getElementById("cache-filter-domain-select");
+const cacheGroupSelect = document.getElementById("cache-filter-group-select");
+
+if (cacheDomainSelect) {
+  cacheDomainSelect.addEventListener("change", renderCacheClusters);
+}
+
+if (cacheGroupSelect) {
+  cacheGroupSelect.addEventListener("change", renderCacheClusters);
+}
+
+// Select/Deselect all for cache
+const cacheSelectAllBtn = document.getElementById("cache-select-all-btn");
+const cacheDeselectAllBtn = document.getElementById("cache-deselect-all-btn");
+
+if (cacheSelectAllBtn) {
+  cacheSelectAllBtn.addEventListener("click", () => {
+    document.querySelectorAll('.cache-clear-checkbox').forEach(cb => cb.checked = true);
+    updateCacheClearButton();
+  });
+}
+
+if (cacheDeselectAllBtn) {
+  cacheDeselectAllBtn.addEventListener("click", () => {
+    document.querySelectorAll('.cache-clear-checkbox').forEach(cb => cb.checked = false);
+    updateCacheClearButton();
+  });
+}
+
+// Clear cache for selected clusters (WITHOUT deleting them)
+const clearCacheBtn = document.getElementById("clear-cache-btn");
+if (clearCacheBtn) {
+  clearCacheBtn.addEventListener("click", async () => {
+    const checkboxes = document.querySelectorAll('.cache-clear-checkbox:checked');
+
+    if (checkboxes.length === 0) return;
+
+    const urlsToClear = Array.from(checkboxes).map(cb => cb.dataset.clusterUrl);
+
+    chrome.storage.local.get("clusters", async ({ clusters = [] }) => {
+      const toClear = clusters.filter(c => urlsToClear.includes(c.url));
+      const clusterList = toClear.map(c => `  • ${c.name}`).join('\n');
+
+      if (!confirm(`🧹 Clear browser cache/cookies for ${toClear.length} cluster(s)?\n\nClusters:\n${clusterList}\n\nThis will NOT delete the cluster from extension.\nYou may need to login again when opening these clusters.`)) {
+        return;
+      }
+
+      // Clear browser data
+      await clearClusterBrowserData(urlsToClear);
+
+      renderCacheClusters();
+      showStatus("success", `✅ Cleared browser cache for ${toClear.length} cluster(s)`);
+    });
+  });
+}
+
+// Populate dropdowns when settings tab is opened
+document.querySelectorAll('.tab[data-tab="settings"]').forEach(tab => {
+  tab.addEventListener('click', () => {
+    setTimeout(() => {
+      populateFilterDropdowns();
+      renderSelectiveClusters();
+      renderCacheClusters();
+    }, 100);
+  });
+});
+
 // ── Search / Filter ───────────────────────────────────
 document.getElementById("search-clusters").addEventListener("input", (e) => {
   const query = e.target.value.toLowerCase();
@@ -1346,10 +1752,35 @@ document.getElementById("bulk-delete-btn").addEventListener("click", () => {
   const checkboxes = document.querySelectorAll(".cluster-checkbox:checked");
   if (checkboxes.length === 0) return;
 
-  if (!confirm(`Delete ${checkboxes.length} cluster(s)? This cannot be undone.`)) return;
-
   chrome.storage.local.get("clusters", ({ clusters = [] }) => {
     const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index)).sort((a, b) => b - a);
+    const toDelete = indices.map(i => clusters[i]).filter(Boolean);
+
+    const clusterList = toDelete.map(c => `  • ${c.name}${c.group ? ` (${c.group})` : ''}`).join('\n');
+
+    // Check if we're deleting all clusters in any group
+    const groupsBeingDeleted = new Set(toDelete.filter(c => c.group).map(c => c.group));
+    const groupWarnings = [];
+
+    groupsBeingDeleted.forEach(group => {
+      const totalInGroup = clusters.filter(c => c.group === group).length;
+      const deletingInGroup = toDelete.filter(c => c.group === group).length;
+
+      if (totalInGroup === deletingInGroup) {
+        groupWarnings.push(`⚠️ ALL clusters in group "${group}" will be deleted (${totalInGroup} cluster${totalInGroup > 1 ? 's' : ''})`);
+      }
+    });
+
+    let confirmMessage = `⚠️ Delete ${toDelete.length} cluster(s)?\n\nClusters to be deleted:\n${clusterList}`;
+
+    if (groupWarnings.length > 0) {
+      confirmMessage += `\n\n${groupWarnings.join('\n')}`;
+    }
+
+    confirmMessage += '\n\nThis cannot be undone.';
+
+    if (!confirm(confirmMessage)) return;
+
     indices.forEach(i => clusters.splice(i, 1));
     chrome.storage.local.set({ clusters }, () => {
       loadClusters();

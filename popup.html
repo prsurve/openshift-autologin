@@ -939,6 +939,84 @@ PROD_PASSWORD=secret</div>
       are filled automatically (or after confirmation).
     </div>
 
+    <div class="section-title" style="margin-top:20px;">Data Management</div>
+
+    <!-- Clear Cache Section -->
+    <div style="background:#16213e;border-radius:8px;padding:12px;margin-bottom:12px;border:1px solid #0f3460;">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:bold;color:#eee;margin-bottom:4px;">🧹 Clear Browser Cache (Keep Login Details)</div>
+        <div style="font-size:10px;color:#888;margin-bottom:8px;">Clear cache, cookies, and sessions WITHOUT deleting cluster from extension</div>
+
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <select id="cache-filter-domain-select" style="flex:1;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:11px;">
+            <option value="">All domains...</option>
+          </select>
+          <select id="cache-filter-group-select" style="flex:1;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:11px;">
+            <option value="">All groups...</option>
+          </select>
+        </div>
+
+        <div id="cache-cluster-list" style="max-height:200px;overflow-y:auto;background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:8px;margin-bottom:8px;">
+          <div style="font-size:11px;color:#666;text-align:center;padding:20px;">Select a domain or group to view clusters</div>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button id="cache-select-all-btn" style="flex:1;background:#2a2a4a;color:#aaa;border:1px solid #3a3a5a;border-radius:6px;padding:6px;cursor:pointer;font-size:11px;">
+            ☑️ Select All
+          </button>
+          <button id="cache-deselect-all-btn" style="flex:1;background:#2a2a4a;color:#aaa;border:1px solid #3a3a5a;border-radius:6px;padding:6px;cursor:pointer;font-size:11px;">
+            ☐ Deselect All
+          </button>
+        </div>
+
+        <button id="clear-cache-btn" style="width:100%;background:#1a3a3a;color:#6bffb4;border:1px solid #2a4a4a;border-radius:6px;padding:8px;cursor:pointer;font-size:12px;font-weight:bold;margin-top:8px;" disabled>
+          🧹 Clear Cache for Selected (0)
+        </button>
+      </div>
+
+      <div style="border-top:1px solid #0f3460;padding-top:12px;font-size:10px;color:#666;">
+        💡 <b>Tip:</b> Clears browser cache/cookies/sessions but keeps cluster saved in extension. Useful for fixing stuck login pages or forcing fresh login.
+      </div>
+    </div>
+
+    <!-- Delete Clusters Section -->
+    <div style="background:#16213e;border-radius:8px;padding:12px;margin-bottom:12px;border:1px solid #0f3460;">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:bold;color:#eee;margin-bottom:4px;">☑️ Select Specific Clusters to Delete</div>
+        <div style="font-size:10px;color:#888;margin-bottom:8px;">Filter by domain or group, then choose which clusters to remove permanently</div>
+
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <select id="filter-domain-select" style="flex:1;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:11px;">
+            <option value="">All domains...</option>
+          </select>
+          <select id="filter-group-select" style="flex:1;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:11px;">
+            <option value="">All groups...</option>
+          </select>
+        </div>
+
+        <div id="selective-cluster-list" style="max-height:200px;overflow-y:auto;background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:8px;margin-bottom:8px;">
+          <div style="font-size:11px;color:#666;text-align:center;padding:20px;">Select a domain or group to view clusters</div>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button id="select-all-filtered-btn" style="flex:1;background:#2a2a4a;color:#aaa;border:1px solid #3a3a5a;border-radius:6px;padding:6px;cursor:pointer;font-size:11px;">
+            ☑️ Select All
+          </button>
+          <button id="deselect-all-filtered-btn" style="flex:1;background:#2a2a4a;color:#aaa;border:1px solid #3a3a5a;border-radius:6px;padding:6px;cursor:pointer;font-size:11px;">
+            ☐ Deselect All
+          </button>
+        </div>
+
+        <button id="delete-selected-clusters-btn" style="width:100%;background:#3a1a1a;color:#ff6b6b;border:1px solid #4a2a2a;border-radius:6px;padding:8px;cursor:pointer;font-size:12px;font-weight:bold;margin-top:8px;" disabled>
+          🗑️ Delete Selected (0)
+        </button>
+      </div>
+
+      <div style="border-top:1px solid #0f3460;padding-top:12px;font-size:10px;color:#666;">
+        💡 <b>Tip:</b> Use the filters to narrow down clusters, then check the ones you want to delete. Only selected clusters will be removed.
+      </div>
+    </div>
+
     <br/>
     <div class="setting-note">
       <b>🔒 SSL Certificate Warnings:</b> Chrome does not allow extensions to bypass certificate
