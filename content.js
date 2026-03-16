@@ -60,6 +60,65 @@
     return true;
   }
 
+  // ── Capture manual login credentials ──────────────────
+  let captureRetries = 0;
+  function captureManualLogin() {
+    const userField = document.querySelector("#inputUsername");
+    const passField = document.querySelector("#inputPassword");
+    const submitBtn = document.querySelector("button[type='submit']") ||
+                      document.querySelector("input[type='submit']");
+
+    if (!userField || !passField || !submitBtn) {
+      captureRetries++;
+      if (captureRetries < 20) { // Max 10 seconds (20 * 500ms)
+        console.log("[Auto-Login Content] Capture: Form fields not found, retry", captureRetries);
+        setTimeout(captureManualLogin, 500);
+      } else {
+        console.log("[Auto-Login Content] Capture: Gave up after", captureRetries, "retries");
+      }
+      return;
+    }
+
+    console.log("[Auto-Login Content] Setting up credential capture listeners");
+
+    // Intercept form submission to capture credentials
+    const captureCredentials = () => {
+      const username = userField.value.trim();
+      const password = passField.value;
+
+      if (username && password) {
+        // Use chrome.storage.local instead of sessionStorage to persist across OAuth redirects
+        chrome.storage.local.set({
+          "os-captured-username": username,
+          "os-captured-password": password,
+          "os-captured-url": window.location.origin,
+          "os-captured-timestamp": Date.now()
+        }, () => {
+          console.log("[Auto-Login Content] ✅ Captured login credentials:", {
+            username,
+            url: window.location.origin
+          });
+        });
+      }
+    };
+
+    // Listen to submit button click
+    submitBtn.addEventListener("click", captureCredentials);
+
+    // Also listen to form submit event
+    const form = submitBtn.closest("form");
+    if (form) {
+      form.addEventListener("submit", captureCredentials);
+    }
+
+    // Also listen to Enter key on password field
+    passField.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        captureCredentials();
+      }
+    });
+  }
+
   // ── Handle IDP selection screen then fill ─────────────
   function handleIdpAndFill(user, password) {
     // Look for IDP provider links/buttons (htpasswd, Local, LDAP etc.)
@@ -357,6 +416,9 @@
       return;
     }
 
+    // Set up credential capture for manual login
+    captureManualLogin();
+
     chrome.storage.local.get(["clusters", "settings"], ({ clusters = [], settings = {} }) => {
       console.log("[Auto-Login Content] Settings:", settings);
       console.log("[Auto-Login Content] Auto-login enabled:", settings.autoLogin);
@@ -431,5 +493,437 @@
 
   // Start after initial page load
   setTimeout(tryRun, 800);
+
+  // ═══════════════════════════════════════════════════════
+  // SAVE CLUSTER FROM CONSOLE PAGE
+  // ═══════════════════════════════════════════════════════
+
+  // Detect if we're on an OpenShift console page (not login page)
+  function isOpenShiftConsolePage() {
+    const url = window.location.href;
+    const hostname = window.location.hostname;
+    const title = document.title.toLowerCase();
+
+    // Check for console patterns
+    const isConsoleHostname = hostname.includes("console-openshift-console") ||
+                               hostname.includes("console.apps");
+
+    const isConsoleUrl = url.includes("/k8s/") ||
+                          url.includes("/dashboards/") ||
+                          url.includes("/overview/") ||
+                          url.includes("/project/");
+
+    const isConsoleTitle = title.includes("openshift") && !title.includes("login");
+
+    const hasConsoleUI = !!document.querySelector('[class*="pf-c-page"], [class*="co-m-"], [class*="oc-"]');
+
+    return (isConsoleHostname || isConsoleUrl || (isConsoleTitle && hasConsoleUI));
+  }
+
+  // Show banner to save cluster
+  function showSaveClusterBanner() {
+    if (document.getElementById("os-save-cluster-banner")) return;
+
+    const banner = document.createElement("div");
+    banner.id = "os-save-cluster-banner";
+    banner.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #1a1a2e; color: #eee;
+      padding: 12px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-family: Arial, sans-serif; font-size: 13px;
+      border-bottom: 3px solid #EE0000;
+      z-index: 999999; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    `;
+
+    banner.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <img src="${chrome.runtime.getURL('icon48.png')}" width="28" height="28" style="border-radius:50%;" />
+        <div>
+          <div style="font-weight:bold;">This cluster is not saved in OpenShift Auto-Login</div>
+          <div style="font-size:11px;color:#888;">Click to add and enable auto-login</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button id="os-save-add" style="
+          background:#EE0000;color:white;border:none;border-radius:6px;
+          padding:7px 16px;cursor:pointer;font-weight:bold;font-size:12px;">
+          ➕ Add Cluster
+        </button>
+        <button id="os-save-dismiss" style="
+          background:#333;color:#eee;border:none;border-radius:6px;
+          padding:7px 16px;cursor:pointer;font-size:12px;">
+          ✕ Dismiss
+        </button>
+      </div>
+    `;
+
+    document.body.prepend(banner);
+
+    document.getElementById("os-save-add").addEventListener("click", () => {
+      banner.remove();
+      showSaveClusterForm();
+    });
+
+    document.getElementById("os-save-dismiss").addEventListener("click", () => {
+      banner.remove();
+      sessionStorage.setItem("os-save-dismissed", "true");
+    });
+
+    // Auto-dismiss after 20 seconds
+    setTimeout(() => { if (banner.parentNode) banner.remove(); }, 20000);
+  }
+
+  // Show form to save cluster
+  function showSaveClusterForm() {
+    if (document.getElementById("os-save-cluster-form")) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "os-save-cluster-form";
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8); z-index: 9999999;
+      display: flex; align-items: center; justify-content: center;
+      font-family: Arial, sans-serif;
+    `;
+
+    const currentUrl = window.location.origin;
+    const suggestedName = window.location.hostname.split('.')[0];
+
+    // Get captured credentials and existing groups
+    chrome.storage.local.get([
+      "clusters",
+      "os-captured-username",
+      "os-captured-password",
+      "os-captured-timestamp"
+    ], (data) => {
+      const clusters = data.clusters || [];
+
+      // Check if captured credentials are recent (within last 2 minutes)
+      const capturedAge = Date.now() - (data["os-captured-timestamp"] || 0);
+      const isRecent = capturedAge < 120000; // 2 minutes
+
+      const capturedUsername = isRecent ? (data["os-captured-username"] || "") : "";
+      const capturedPassword = isRecent ? (data["os-captured-password"] || "") : "";
+
+      console.log("[Auto-Login Content] Pre-filling form:", {
+        hasUsername: !!capturedUsername,
+        hasPassword: !!capturedPassword,
+        age: Math.round(capturedAge / 1000) + "s",
+        username: capturedUsername
+      });
+
+      const preFilledNote = (capturedUsername && capturedPassword) ?
+        `<div style="background:#1a3a1a;border:1px solid #2a4a2a;border-radius:6px;padding:8px;margin-bottom:16px;">
+          <div style="font-size:11px;color:#6bffb4;">✅ Pre-filled with login credentials</div>
+        </div>` : '';
+      const existingGroups = [...new Set(clusters.filter(c => c.group).map(c => c.group))].sort();
+
+      let groupOptions = '<option value="">No Group</option>';
+      existingGroups.forEach(group => {
+        groupOptions += `<option value="${group}">${group}</option>`;
+      });
+      groupOptions += '<option value="__new__">➕ Create New Group...</option>';
+
+      overlay.innerHTML = `
+        <div style="
+          background: #1a1a2e; border-radius: 12px; padding: 24px;
+          width: 450px; max-width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+          border: 2px solid #EE0000; max-height: 90vh; overflow-y: auto;
+        ">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+            <img src="${chrome.runtime.getURL('icon48.png')}" width="40" height="40" style="border-radius:50%;" />
+            <div>
+              <div style="font-size:18px;font-weight:bold;color:#eee;">Add Cluster</div>
+              <div style="font-size:11px;color:#888;">Save credentials for auto-login</div>
+            </div>
+          </div>
+
+          ${preFilledNote}
+
+          <div style="margin-bottom:16px;">
+            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Cluster Name</label>
+            <input id="os-save-name" type="text" value="${suggestedName}"
+              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
+                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;" />
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Console URL</label>
+            <input id="os-save-url" type="text" value="${currentUrl}" readonly
+              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
+                     padding:10px;color:#888;font-size:13px;box-sizing:border-box;" />
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Username</label>
+            <input id="os-save-user" type="text" placeholder="Enter username" value="${capturedUsername}"
+              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
+                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;" />
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Password</label>
+            <input id="os-save-password" type="password" placeholder="Enter password" value="${capturedPassword}"
+              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
+                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;" />
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Group (Optional)</label>
+            <select id="os-save-group"
+              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
+                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;cursor:pointer;">
+              ${groupOptions}
+            </select>
+            <input id="os-save-new-group" type="text" placeholder="Enter new group name"
+              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
+                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;margin-top:8px;display:none;" />
+          </div>
+
+          <div style="margin-bottom:20px;">
+            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Role (Optional)</label>
+            <input id="os-save-role" type="text" placeholder="e.g., admin, developer, viewer"
+              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
+                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;" />
+          </div>
+
+          <div style="display:flex;gap:10px;">
+            <button id="os-save-confirm" style="
+              flex:1;background:#EE0000;color:white;border:none;border-radius:6px;
+              padding:12px;cursor:pointer;font-weight:bold;font-size:14px;">
+              ✅ Save Cluster
+            </button>
+            <button id="os-save-cancel" style="
+              flex:1;background:#333;color:#eee;border:none;border-radius:6px;
+              padding:12px;cursor:pointer;font-size:14px;">
+              ✕ Cancel
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+
+      // Handle group selection
+      const groupSelect = document.getElementById("os-save-group");
+      const newGroupInput = document.getElementById("os-save-new-group");
+
+      groupSelect.addEventListener("change", () => {
+        if (groupSelect.value === "__new__") {
+          newGroupInput.style.display = "block";
+          newGroupInput.focus();
+        } else {
+          newGroupInput.style.display = "none";
+        }
+      });
+
+      // Focus on appropriate field - cluster name if credentials pre-filled, username otherwise
+      setTimeout(() => {
+        if (capturedUsername && capturedPassword) {
+          document.getElementById("os-save-name").focus();
+        } else {
+          document.getElementById("os-save-user").focus();
+        }
+      }, 100);
+
+      // Handle save
+      document.getElementById("os-save-confirm").addEventListener("click", () => {
+        const name = document.getElementById("os-save-name").value.trim();
+        const url = document.getElementById("os-save-url").value.trim();
+        const user = document.getElementById("os-save-user").value.trim();
+        const password = document.getElementById("os-save-password").value;
+        const role = document.getElementById("os-save-role").value.trim();
+
+        let group = groupSelect.value;
+        if (group === "__new__") {
+          group = newGroupInput.value.trim();
+        } else if (group === "") {
+          group = undefined;
+        }
+
+        if (!name || !user || !password) {
+          alert("Please fill in all required fields (Name, Username, Password)");
+          return;
+        }
+
+        chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+          const newCluster = { name, url, user, password };
+          if (group) newCluster.group = group;
+          if (role) newCluster.role = role;
+
+          clusters.push(newCluster);
+          chrome.storage.local.set({ clusters }, () => {
+            // Clear captured credentials from session
+            chrome.storage.local.remove([
+              "os-captured-username",
+              "os-captured-password",
+              "os-captured-url",
+              "os-captured-timestamp"
+            ]);
+
+            overlay.remove();
+            showSaveSuccessBanner(name);
+          });
+        });
+      });
+
+      // Handle cancel
+      document.getElementById("os-save-cancel").addEventListener("click", () => {
+        // Clear captured credentials from session
+        sessionStorage.removeItem("os-captured-username");
+        sessionStorage.removeItem("os-captured-password");
+        sessionStorage.removeItem("os-captured-url");
+
+        overlay.remove();
+      });
+
+      // Handle enter key
+      ["os-save-name", "os-save-user", "os-save-password", "os-save-role"].forEach(id => {
+        document.getElementById(id).addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            document.getElementById("os-save-confirm").click();
+          }
+        });
+      });
+
+      // Close on overlay click (not form click)
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) {
+          // Clear captured credentials from session
+          sessionStorage.removeItem("os-captured-username");
+          sessionStorage.removeItem("os-captured-password");
+          sessionStorage.removeItem("os-captured-url");
+
+          overlay.remove();
+        }
+      });
+    });
+  }
+
+  // Show success banner after saving
+  function showSaveSuccessBanner(clusterName) {
+    const banner = document.createElement("div");
+    banner.style.cssText = `
+      position: fixed; top: 20px; right: 20px;
+      background: #1a3a3a; color: #6bffb4;
+      padding: 16px 20px;
+      border-radius: 8px;
+      font-family: Arial, sans-serif; font-size: 14px;
+      border: 2px solid #6bffb4;
+      z-index: 9999999; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      font-weight: bold;
+    `;
+
+    banner.innerHTML = `✅ Cluster "${clusterName}" saved successfully!`;
+    document.body.appendChild(banner);
+
+    setTimeout(() => {
+      banner.style.transition = "opacity 0.5s";
+      banner.style.opacity = "0";
+      setTimeout(() => banner.remove(), 500);
+    }, 3000);
+  }
+
+  // Check if we should show the save banner
+  function checkAndShowSaveBanner() {
+    // Don't show if already dismissed in this session
+    if (sessionStorage.getItem("os-save-dismissed") === "true") return;
+
+    // Don't show on login pages
+    if (isOpenShiftLoginPage()) return;
+
+    // Check if we're on a console page
+    if (!isOpenShiftConsolePage()) return;
+
+    const currentUrl = window.location.origin;
+
+    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+      // Check if this cluster is already saved
+      const exists = clusters.some(c => {
+        try {
+          return new URL(c.url).origin === currentUrl;
+        } catch {
+          return false;
+        }
+      });
+
+      if (!exists) {
+        showSaveClusterBanner();
+      }
+    });
+  }
+
+  // Check after successful login (when credentials were captured and we're back on console)
+  function checkAfterLogin() {
+    // Only check on console pages
+    if (!isOpenShiftConsolePage()) return;
+
+    chrome.storage.local.get([
+      "clusters",
+      "os-captured-username",
+      "os-captured-password",
+      "os-captured-timestamp"
+    ], (data) => {
+      const capturedUsername = data["os-captured-username"];
+      const capturedPassword = data["os-captured-password"];
+      const capturedTimestamp = data["os-captured-timestamp"] || 0;
+
+      // Check if credentials are recent (within last 2 minutes)
+      const age = Date.now() - capturedTimestamp;
+      const isRecent = age < 120000; // 2 minutes
+
+      console.log("[Auto-Login Content] Checking after login:", {
+        hasCredentials: !!capturedUsername && !!capturedPassword,
+        age: Math.round(age / 1000) + "s",
+        isRecent
+      });
+
+      // If we captured credentials recently and we're now on a console page
+      if (capturedUsername && capturedPassword && isRecent) {
+        const currentUrl = window.location.origin;
+        const clusters = data.clusters || [];
+
+        // Check if this cluster is already saved
+        const exists = clusters.some(c => {
+          try {
+            return new URL(c.url).origin === currentUrl;
+          } catch {
+            return false;
+          }
+        });
+
+        if (!exists && sessionStorage.getItem("os-save-dismissed") !== "true") {
+          // Auto-show the save form with pre-filled credentials
+          console.log("[Auto-Login Content] Auto-showing save form with captured credentials");
+          setTimeout(() => showSaveClusterForm(), 1000);
+        } else {
+          // Cluster already exists or user dismissed - clear captured credentials
+          console.log("[Auto-Login Content] Cluster exists or dismissed, clearing captured credentials");
+          chrome.storage.local.remove([
+            "os-captured-username",
+            "os-captured-password",
+            "os-captured-url",
+            "os-captured-timestamp"
+          ]);
+        }
+      } else if (capturedUsername && !isRecent) {
+        // Credentials are too old, clear them
+        console.log("[Auto-Login Content] Captured credentials expired, clearing");
+        chrome.storage.local.remove([
+          "os-captured-username",
+          "os-captured-password",
+          "os-captured-url",
+          "os-captured-timestamp"
+        ]);
+      }
+    });
+  }
+
+  // Run check after page loads
+  setTimeout(() => {
+    checkAfterLogin(); // Check if we just logged in manually
+    checkAndShowSaveBanner(); // Check if we should show the save banner
+  }, 2000);
 
 })();
