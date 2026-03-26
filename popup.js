@@ -315,6 +315,8 @@ function showMoveToGroupMenu(button, cluster, index, clusters, allGroups) {
   // Add "Create new group" option
   menuHTML += '<div class="context-menu-divider"></div>';
   menuHTML += '<div class="context-menu-item" data-action="new-group">➕ Create New Group</div>';
+  menuHTML += '<div class="context-menu-divider"></div>';
+  menuHTML += '<div class="context-menu-item" data-action="share-cluster">🔗 Share Cluster</div>';
 
   menu.innerHTML = menuHTML;
   document.body.appendChild(menu);
@@ -349,6 +351,11 @@ function showMoveToGroupMenu(button, cluster, index, clusters, allGroups) {
             showStatus("success", `✅ ${cluster.name} moved to group "${newGroupName.trim()}"`);
           });
         }
+      } else if (action === "share-cluster") {
+        // Share single cluster
+        menu.remove();
+        shareCluster(cluster);
+        return;
       } else if (groupName) {
         // Move to existing group
         clusters[index].group = groupName;
@@ -374,11 +381,110 @@ function showMoveToGroupMenu(button, cluster, index, clusters, allGroups) {
   }, 0);
 }
 
+// ── Share single cluster ──────────────────────────────
+function shareCluster(cluster) {
+  // Show password inclusion modal
+  const modal = document.createElement("div");
+  modal.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background: #1a1a2e; border-radius: 12px; padding: 24px;
+      max-width: 400px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      border: 2px solid #6bb4ff;
+    ">
+      <div style="font-size:18px;font-weight:bold;color:#eee;margin-bottom:12px;">
+        🔗 Share Cluster: ${escapeHtml(cluster.name)}
+      </div>
+
+      <div style="background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:12px;margin-bottom:16px;">
+        <div style="font-size:11px;color:#888;margin-bottom:8px;">
+          ${escapeHtml(cluster.url)}
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="share-single-password" checked style="cursor:pointer;" />
+          <span style="font-size:12px;color:#eee;">Include password in share link</span>
+        </label>
+        <div style="font-size:9px;color:#666;margin-left:24px;margin-top:4px;">
+          ⚠️ Uncheck for better security (recommended)
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button id="confirm-share-single-btn" style="
+          flex:1;background:#1a3a5a;color:#6bb4ff;border:none;
+          border-radius:6px;padding:10px;cursor:pointer;font-weight:bold;font-size:13px;">
+          🔗 Generate Link
+        </button>
+        <button id="cancel-share-single-btn" style="
+          flex:1;background:#333;color:#eee;border:none;
+          border-radius:6px;padding:10px;cursor:pointer;font-size:13px;">
+          ✕ Cancel
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Confirm share
+  document.getElementById("confirm-share-single-btn").addEventListener("click", () => {
+    const includePassword = document.getElementById("share-single-password").checked;
+    modal.remove();
+
+    // Create export data for single cluster
+    const exportData = {
+      version: "2.3.2",
+      timestamp: Date.now(),
+      clusters: [{
+        name: cluster.name,
+        url: cluster.url,
+        user: cluster.user
+      }]
+    };
+
+    if (includePassword) {
+      exportData.clusters[0].password = cluster.password;
+    }
+
+    if (cluster.group) exportData.clusters[0].group = cluster.group;
+    if (cluster.role) exportData.clusters[0].role = cluster.role;
+
+    // Encode to base64
+    const jsonStr = JSON.stringify(exportData);
+    const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+    const shareLink = `osac://import/${base64}`;
+
+    // Show share link modal
+    showShareLinkModal(shareLink, 1, includePassword);
+  });
+
+  // Cancel share
+  document.getElementById("cancel-share-single-btn").addEventListener("click", () => {
+    modal.remove();
+  });
+
+  // Close on overlay click
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
 // ── Edit cluster ──────────────────────────────────────
 function editCluster(index, cluster, clusters) {
   // Hide add form if open
   document.getElementById("add-form").style.display = "none";
   document.getElementById("add-btn").style.display = "none";
+  if (document.getElementById("quick-import-btn")) {
+    document.getElementById("quick-import-btn").style.display = "none";
+  }
 
   // Create or show edit form
   let editForm = document.getElementById("edit-form");
@@ -478,6 +584,9 @@ function editCluster(index, cluster, clusters) {
     chrome.storage.local.set({ clusters }, () => {
       editForm.style.display = "none";
       document.getElementById("add-btn").style.display = "block";
+      if (document.getElementById("quick-import-btn")) {
+        document.getElementById("quick-import-btn").style.display = "block";
+      }
       loadClusters();
       showStatus("success", `✅ ${name} updated!`);
     });
@@ -489,6 +598,9 @@ function editCluster(index, cluster, clusters) {
   document.getElementById("edit-cancel-btn").addEventListener("click", () => {
     editForm.style.display = "none";
     document.getElementById("add-btn").style.display = "block";
+      if (document.getElementById("quick-import-btn")) {
+        document.getElementById("quick-import-btn").style.display = "block";
+      }
   });
 }
 
@@ -548,6 +660,7 @@ function loadClusters() {
           </div>
         </div>
         <div class="group-actions">
+          <button class="share-group-btn" style="background:${groupColor.bg};color:${groupColor.text};border:1px solid ${groupColor.border};padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;margin-right:6px;" title="Share this group with others">🔗 Share</button>
           <button class="login-all-btn" style="background:${groupColor.border};color:${groupColor.text};" title="Login to all clusters in this group">⚡ Login All</button>
           <span class="group-count" style="background:${groupColor.bg};color:${groupColor.text};border-color:${groupColor.border};">${group.clusters.length}</span>
         </div>
@@ -564,6 +677,7 @@ function loadClusters() {
       // Toggle expand/collapse on header click
       header.addEventListener("click", (e) => {
         if (e.target.closest(".login-all-btn")) return; // don't toggle when clicking Login All
+        if (e.target.closest(".share-group-btn")) return; // don't toggle when clicking Share
         const collapsed = body.classList.toggle("collapsed");
         header.querySelector(".group-chevron").textContent = collapsed ? "▶" : "▼";
       });
@@ -602,6 +716,108 @@ function loadClusters() {
             loadClusters();
             showStatus("success", `✅ Moved to group "${group.groupId}"`);
           });
+        });
+      });
+
+      // Share Group — generate shareable link for this group
+      header.querySelector(".share-group-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+
+        // Show password inclusion modal
+        const modal = document.createElement("div");
+        modal.style.cssText = `
+          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.85); z-index: 9999;
+          display: flex; align-items: center; justify-content: center;
+          padding: 20px;
+        `;
+
+        modal.innerHTML = `
+          <div style="
+            background: #1a1a2e; border-radius: 12px; padding: 24px;
+            max-width: 400px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            border: 2px solid ${groupColor.border};
+          ">
+            <div style="font-size:18px;font-weight:bold;color:#eee;margin-bottom:12px;">
+              🔗 Share Group: ${escapeHtml(groupLabel)}
+            </div>
+
+            <div style="background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:12px;margin-bottom:16px;">
+              <div style="font-size:11px;color:#888;margin-bottom:8px;">
+                ${group.clusters.length} cluster(s) will be shared
+              </div>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="share-group-passwords" checked style="cursor:pointer;" />
+                <span style="font-size:12px;color:#eee;">Include passwords in share link</span>
+              </label>
+              <div style="font-size:9px;color:#666;margin-left:24px;margin-top:4px;">
+                ⚠️ Uncheck for better security (recommended)
+              </div>
+            </div>
+
+            <div style="display:flex;gap:10px;">
+              <button id="confirm-share-group-btn" style="
+                flex:1;background:${groupColor.border};color:${groupColor.text};border:none;
+                border-radius:6px;padding:10px;cursor:pointer;font-weight:bold;font-size:13px;">
+                🔗 Generate Link
+              </button>
+              <button id="cancel-share-group-btn" style="
+                flex:1;background:#333;color:#eee;border:none;
+                border-radius:6px;padding:10px;cursor:pointer;font-size:13px;">
+                ✕ Cancel
+              </button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Confirm share
+        document.getElementById("confirm-share-group-btn").addEventListener("click", () => {
+          const includePasswords = document.getElementById("share-group-passwords").checked;
+          modal.remove();
+
+          // Create export data for this group
+          const exportData = {
+            version: "2.3.2",
+            timestamp: Date.now(),
+            clusters: group.clusters.map(({ cluster }) => {
+              const exported = {
+                name: cluster.name,
+                url: cluster.url,
+                user: cluster.user
+              };
+
+              if (includePasswords) {
+                exported.password = cluster.password;
+              }
+
+              if (cluster.group) exported.group = cluster.group;
+              if (cluster.role) exported.role = cluster.role;
+
+              return exported;
+            })
+          };
+
+          // Encode to base64
+          const jsonStr = JSON.stringify(exportData);
+          const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+          const shareLink = `osac://import/${base64}`;
+
+          // Show share link modal
+          showShareLinkModal(shareLink, group.clusters.length, includePasswords);
+        });
+
+        // Cancel share
+        document.getElementById("cancel-share-group-btn").addEventListener("click", () => {
+          modal.remove();
+        });
+
+        // Close on overlay click
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) {
+            modal.remove();
+          }
         });
       });
 
@@ -1143,6 +1359,9 @@ function restoreFormState() {
     if (formState.isOpen) {
       document.getElementById("add-form").style.display = "block";
       document.getElementById("add-btn").style.display = "none";
+  if (document.getElementById("quick-import-btn")) {
+    document.getElementById("quick-import-btn").style.display = "none";
+  }
     }
   });
 }
@@ -1164,6 +1383,9 @@ function setupFormAutosave() {
 document.getElementById("add-btn").addEventListener("click", () => {
   document.getElementById("add-form").style.display = "block";
   document.getElementById("add-btn").style.display  = "none";
+  if (document.getElementById("quick-import-btn")) {
+    document.getElementById("quick-import-btn").style.display = "none";
+  }
 
   // Set default username to "kubeadmin" if field is empty
   const userField = document.getElementById("f-user");
@@ -1175,9 +1397,80 @@ document.getElementById("add-btn").addEventListener("click", () => {
   saveFormState(); // Save that form is now open
 });
 
+// Quick import from link button
+const quickImportBtn = document.getElementById("quick-import-btn");
+if (quickImportBtn) {
+  quickImportBtn.addEventListener("click", () => {
+    const link = prompt("📥 Paste shareable link:", "osac://import/");
+
+    if (!link || !link.trim()) {
+      return;
+    }
+
+    // Extract base64 from link
+    let base64;
+    if (link.startsWith("osac://import/")) {
+      base64 = link.substring("osac://import/".length);
+    } else {
+      base64 = link;
+    }
+
+    try {
+      // Decode base64
+      const jsonStr = decodeURIComponent(escape(atob(base64)));
+      const importData = JSON.parse(jsonStr);
+
+      if (!importData.clusters || !Array.isArray(importData.clusters)) {
+        alert("Invalid share link format");
+        return;
+      }
+
+      const importCount = importData.clusters.length;
+      const hasPasswords = importData.clusters.some(c => c.password);
+
+      if (!confirm(`📥 Import ${importCount} cluster(s)?\n\n${hasPasswords ? '✅ Passwords are included' : '⚠️ Passwords are NOT included - you will need to add them manually'}\n\nClusters will be added to your list.`)) {
+        return;
+      }
+
+      chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+        // Add imported clusters (avoid duplicates by URL)
+        const existingUrls = new Set(clusters.map(c => c.url));
+        let added = 0;
+        let skipped = 0;
+
+        importData.clusters.forEach(imported => {
+          if (existingUrls.has(imported.url)) {
+            skipped++;
+          } else {
+            clusters.push(imported);
+            added++;
+          }
+        });
+
+        chrome.storage.local.set({ clusters }, () => {
+          loadClusters();
+
+          let message = `✅ Imported ${added} cluster(s)`;
+          if (skipped > 0) {
+            message += ` | Skipped ${skipped} duplicate(s)`;
+          }
+          showStatus("success", message);
+        });
+      });
+
+    } catch (err) {
+      console.error("Import error:", err);
+      alert("Failed to import: Invalid share link format");
+    }
+  });
+}
+
 document.getElementById("cancel-btn").addEventListener("click", () => {
   document.getElementById("add-form").style.display = "none";
   document.getElementById("add-btn").style.display  = "block";
+  if (document.getElementById("quick-import-btn")) {
+    document.getElementById("quick-import-btn").style.display = "block";
+  }
   // Clear form fields
   ["f-name","f-url","f-user","f-password","f-role","f-group"].forEach(id => {
     const el = document.getElementById(id);
@@ -1702,9 +1995,363 @@ document.querySelectorAll('.tab[data-tab="settings"]').forEach(tab => {
       populateFilterDropdowns();
       renderSelectiveClusters();
       renderCacheClusters();
+      renderShareClusters();
     }, 100);
   });
 });
+
+// ═══════════════════════════════════════════════════════
+// SHARE CLUSTERS (Export/Import via shareable link)
+// ═══════════════════════════════════════════════════════
+
+// Populate share filter dropdowns
+function populateShareFilterDropdowns() {
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    const domains = new Map();
+    const groups = new Map();
+
+    clusters.forEach(c => {
+      if (c.url) {
+        const domain = extractBaseDomain(c.url);
+        domains.set(domain, (domains.get(domain) || 0) + 1);
+      }
+      if (c.group && c.group.trim()) {
+        const group = c.group.trim();
+        groups.set(group, (groups.get(group) || 0) + 1);
+      }
+    });
+
+    const shareDomainSelect = document.getElementById("share-filter-domain-select");
+    if (shareDomainSelect) {
+      shareDomainSelect.innerHTML = '<option value="">All domains...</option>';
+      Array.from(domains.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .forEach(([domain, count]) => {
+          const option = document.createElement("option");
+          option.value = domain;
+          option.textContent = `${domain} (${count})`;
+          shareDomainSelect.appendChild(option);
+        });
+    }
+
+    const shareGroupSelect = document.getElementById("share-filter-group-select");
+    if (shareGroupSelect) {
+      shareGroupSelect.innerHTML = '<option value="">All groups...</option>';
+      Array.from(groups.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .forEach(([group, count]) => {
+          const option = document.createElement("option");
+          option.value = group;
+          option.textContent = `${group} (${count})`;
+          shareGroupSelect.appendChild(option);
+        });
+    }
+  });
+}
+
+// Render share cluster list
+function renderShareClusters() {
+  populateShareFilterDropdowns();
+
+  const filterDomain = document.getElementById("share-filter-domain-select")?.value;
+  const filterGroup = document.getElementById("share-filter-group-select")?.value;
+
+  const listEl = document.getElementById("share-cluster-list");
+  if (!listEl) return;
+
+  if (!filterDomain && !filterGroup) {
+    listEl.innerHTML = '<div style="font-size:11px;color:#666;text-align:center;padding:20px;">Select a domain or group to view clusters</div>';
+    updateShareButton();
+    return;
+  }
+
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    let filtered = clusters;
+
+    if (filterDomain) {
+      filtered = filtered.filter(c => extractBaseDomain(c.url) === filterDomain);
+    }
+
+    if (filterGroup) {
+      filtered = filtered.filter(c => c.group === filterGroup);
+    }
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div style="font-size:11px;color:#666;text-align:center;padding:20px;">No clusters match the selected filters</div>';
+      updateShareButton();
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(c => `
+      <div style="display:flex;align-items:center;padding:6px;border-bottom:1px solid #1a1a2a;">
+        <input type="checkbox" class="share-checkbox" data-cluster-url="${escapeHtml(c.url)}"
+               style="margin-right:8px;cursor:pointer;" />
+        <div style="flex:1;">
+          <div style="font-size:11px;color:#eee;font-weight:bold;">${escapeHtml(c.name)}</div>
+          <div style="font-size:9px;color:#666;">${escapeHtml(c.url)}</div>
+        </div>
+      </div>
+    `).join('');
+
+    // Add event listeners to checkboxes
+    document.querySelectorAll('.share-checkbox').forEach(cb => {
+      cb.addEventListener('change', updateShareButton);
+    });
+
+    updateShareButton();
+  });
+}
+
+// Update share button state
+function updateShareButton() {
+  const checkboxes = document.querySelectorAll('.share-checkbox:checked');
+  const btn = document.getElementById("generate-share-link-btn");
+  if (!btn) return;
+
+  const count = checkboxes.length;
+
+  btn.textContent = `🔗 Generate Shareable Link (${count})`;
+  btn.disabled = count === 0;
+
+  if (count > 0) {
+    btn.style.background = '#1a3a5a';
+    btn.style.cursor = 'pointer';
+  } else {
+    btn.style.background = '#0a2a4a';
+    btn.style.cursor = 'not-allowed';
+  }
+}
+
+// Share filter change handlers
+const shareDomainSelect = document.getElementById("share-filter-domain-select");
+const shareGroupSelect = document.getElementById("share-filter-group-select");
+
+if (shareDomainSelect) {
+  shareDomainSelect.addEventListener("change", renderShareClusters);
+}
+
+if (shareGroupSelect) {
+  shareGroupSelect.addEventListener("change", renderShareClusters);
+}
+
+// Select/Deselect all for share
+const shareSelectAllBtn = document.getElementById("share-select-all-btn");
+const shareDeselectAllBtn = document.getElementById("share-deselect-all-btn");
+
+if (shareSelectAllBtn) {
+  shareSelectAllBtn.addEventListener("click", () => {
+    document.querySelectorAll('.share-checkbox').forEach(cb => cb.checked = true);
+    updateShareButton();
+  });
+}
+
+if (shareDeselectAllBtn) {
+  shareDeselectAllBtn.addEventListener("click", () => {
+    document.querySelectorAll('.share-checkbox').forEach(cb => cb.checked = false);
+    updateShareButton();
+  });
+}
+
+// Generate shareable link
+const generateShareLinkBtn = document.getElementById("generate-share-link-btn");
+if (generateShareLinkBtn) {
+  generateShareLinkBtn.addEventListener("click", () => {
+    const checkboxes = document.querySelectorAll('.share-checkbox:checked');
+    if (checkboxes.length === 0) return;
+
+    const includePasswords = document.getElementById("share-include-passwords").checked;
+    const urlsToShare = Array.from(checkboxes).map(cb => cb.dataset.clusterUrl);
+
+    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+      const toShare = clusters.filter(c => urlsToShare.includes(c.url));
+
+      // Create export data
+      const exportData = {
+        version: "2.3.2",
+        timestamp: Date.now(),
+        clusters: toShare.map(c => {
+          const exported = {
+            name: c.name,
+            url: c.url,
+            user: c.user
+          };
+
+          if (includePasswords) {
+            exported.password = c.password;
+          }
+
+          if (c.group) exported.group = c.group;
+          if (c.role) exported.role = c.role;
+
+          return exported;
+        })
+      };
+
+      // Encode to base64
+      const jsonStr = JSON.stringify(exportData);
+      const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+      const shareLink = `osac://import/${base64}`;
+
+      // Show modal with link
+      showShareLinkModal(shareLink, toShare.length, includePasswords);
+    });
+  });
+}
+
+// Show modal with shareable link
+function showShareLinkModal(link, count, includePasswords) {
+  const modal = document.createElement("div");
+  modal.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background: #1a1a2e; border-radius: 12px; padding: 24px;
+      max-width: 500px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      border: 2px solid #6bb4ff;
+    ">
+      <div style="font-size:18px;font-weight:bold;color:#eee;margin-bottom:12px;">
+        🔗 Shareable Link Generated
+      </div>
+
+      <div style="background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:12px;margin-bottom:16px;">
+        <div style="font-size:11px;color:#888;margin-bottom:6px;">
+          ✅ ${count} cluster(s) | ${includePasswords ? '🔑 Passwords included' : '⚠️ Passwords excluded'}
+        </div>
+        <textarea id="share-link-text" readonly style="
+          width:100%;background:#16213e;border:1px solid #444;border-radius:6px;
+          padding:10px;color:#6bb4ff;font-size:11px;font-family:monospace;
+          resize:none;box-sizing:border-box;word-break:break-all;
+        " rows="4">${link}</textarea>
+      </div>
+
+      <div style="background:#1a2a3a;border:1px solid #2a3a4a;border-radius:6px;padding:10px;margin-bottom:16px;font-size:10px;color:#aaa;">
+        ⚠️ <b>Security Warning:</b><br/>
+        ${includePasswords
+          ? 'This link contains usernames AND passwords. Only share with trusted users.'
+          : 'This link contains usernames but NOT passwords. Recipients will need to enter passwords manually.'}
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button id="copy-share-link-btn" style="
+          flex:1;background:#1a3a5a;color:#6bb4ff;border:1px solid #2a4a6a;
+          border-radius:6px;padding:10px;cursor:pointer;font-weight:bold;font-size:13px;">
+          📋 Copy Link
+        </button>
+        <button id="close-share-modal-btn" style="
+          flex:1;background:#333;color:#eee;border:none;
+          border-radius:6px;padding:10px;cursor:pointer;font-size:13px;">
+          ✕ Close
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Copy link handler
+  document.getElementById("copy-share-link-btn").addEventListener("click", () => {
+    const textarea = document.getElementById("share-link-text");
+    textarea.select();
+    document.execCommand("copy");
+
+    const btn = document.getElementById("copy-share-link-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "✅ Copied!";
+    btn.style.background = "#1a4a1a";
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = "#1a3a5a";
+    }, 2000);
+  });
+
+  // Close modal handler
+  document.getElementById("close-share-modal-btn").addEventListener("click", () => {
+    modal.remove();
+  });
+
+  // Close on overlay click
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
+// Import from share link
+const importShareLinkBtn = document.getElementById("import-share-link-btn");
+if (importShareLinkBtn) {
+  importShareLinkBtn.addEventListener("click", () => {
+    const input = document.getElementById("import-share-link-input");
+    const link = input.value.trim();
+
+    if (!link) {
+      alert("Please paste a shareable link first");
+      return;
+    }
+
+    // Extract base64 from link
+    let base64;
+    if (link.startsWith("osac://import/")) {
+      base64 = link.substring("osac://import/".length);
+    } else {
+      base64 = link;
+    }
+
+    try {
+      // Decode base64
+      const jsonStr = decodeURIComponent(escape(atob(base64)));
+      const importData = JSON.parse(jsonStr);
+
+      if (!importData.clusters || !Array.isArray(importData.clusters)) {
+        alert("Invalid share link format");
+        return;
+      }
+
+      const importCount = importData.clusters.length;
+      const hasPasswords = importData.clusters.some(c => c.password);
+
+      if (!confirm(`📥 Import ${importCount} cluster(s)?\n\n${hasPasswords ? '✅ Passwords are included' : '⚠️ Passwords are NOT included - you will need to add them manually'}\n\nClusters will be added to your list.`)) {
+        return;
+      }
+
+      chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+        // Add imported clusters (avoid duplicates by URL)
+        const existingUrls = new Set(clusters.map(c => c.url));
+        let added = 0;
+        let skipped = 0;
+
+        importData.clusters.forEach(imported => {
+          if (existingUrls.has(imported.url)) {
+            skipped++;
+          } else {
+            clusters.push(imported);
+            added++;
+          }
+        });
+
+        chrome.storage.local.set({ clusters }, () => {
+          loadClusters();
+          input.value = "";
+
+          let message = `✅ Imported ${added} cluster(s)`;
+          if (skipped > 0) {
+            message += `\n⚠️ Skipped ${skipped} duplicate(s)`;
+          }
+          alert(message);
+        });
+      });
+
+    } catch (err) {
+      console.error("Import error:", err);
+      alert("Failed to import: Invalid share link format");
+    }
+  });
+}
 
 // ── Search / Filter ───────────────────────────────────
 document.getElementById("search-clusters").addEventListener("input", (e) => {

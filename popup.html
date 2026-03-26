@@ -701,7 +701,10 @@
       </button>
     </div>
 
-    <button class="add-btn" id="add-btn">+ Add Cluster</button>
+    <div style="display:flex;gap:8px;">
+      <button class="add-btn" id="add-btn" style="flex:1;">+ Add Cluster</button>
+      <button class="add-btn" id="quick-import-btn" style="flex:1;background:#1a3a5a;">📥 Import Link</button>
+    </div>
 
     <div class="form" id="add-form" style="display:none;">
       <label>Cluster Name</label>
@@ -1014,6 +1017,63 @@ PROD_PASSWORD=secret</div>
 
       <div style="border-top:1px solid #0f3460;padding-top:12px;font-size:10px;color:#666;">
         💡 <b>Tip:</b> Use the filters to narrow down clusters, then check the ones you want to delete. Only selected clusters will be removed.
+      </div>
+    </div>
+
+    <!-- Share Clusters Section -->
+    <div style="background:#16213e;border-radius:8px;padding:12px;margin-bottom:12px;border:1px solid #0f3460;">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:bold;color:#eee;margin-bottom:4px;">🔗 Share Clusters with Others</div>
+        <div style="font-size:10px;color:#888;margin-bottom:8px;">Export clusters as a shareable link that others can import</div>
+
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <select id="share-filter-domain-select" style="flex:1;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:11px;">
+            <option value="">All domains...</option>
+          </select>
+          <select id="share-filter-group-select" style="flex:1;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:11px;">
+            <option value="">All groups...</option>
+          </select>
+        </div>
+
+        <div id="share-cluster-list" style="max-height:200px;overflow-y:auto;background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:8px;margin-bottom:8px;">
+          <div style="font-size:11px;color:#666;text-align:center;padding:20px;">Select a domain or group to view clusters</div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button id="share-select-all-btn" style="flex:1;background:#2a2a4a;color:#aaa;border:1px solid #3a3a5a;border-radius:6px;padding:6px;cursor:pointer;font-size:11px;">
+            ☑️ Select All
+          </button>
+          <button id="share-deselect-all-btn" style="flex:1;background:#2a2a4a;color:#aaa;border:1px solid #3a3a5a;border-radius:6px;padding:6px;cursor:pointer;font-size:11px;">
+            ☐ Deselect All
+          </button>
+        </div>
+
+        <div style="margin-bottom:8px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;">
+            <input type="checkbox" id="share-include-passwords" checked style="cursor:pointer;" />
+            <span>Include passwords in shareable link</span>
+          </label>
+          <div style="font-size:9px;color:#666;margin-left:22px;">
+            ⚠️ Uncheck to share only URLs and usernames (recommended for security)
+          </div>
+        </div>
+
+        <button id="generate-share-link-btn" style="width:100%;background:#1a3a5a;color:#6bb4ff;border:1px solid #2a4a6a;border-radius:6px;padding:8px;cursor:pointer;font-size:12px;font-weight:bold;" disabled>
+          🔗 Generate Shareable Link (0)
+        </button>
+      </div>
+
+      <div style="border-top:1px solid #0f3460;padding-top:12px;margin-top:12px;">
+        <div style="font-size:12px;font-weight:bold;color:#eee;margin-bottom:8px;">📥 Import from Share Link</div>
+        <input id="import-share-link-input" type="text" placeholder="Paste shareable link here..."
+          style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:10px;color:#eee;font-size:11px;box-sizing:border-box;margin-bottom:8px;" />
+        <button id="import-share-link-btn" style="width:100%;background:#1a3a5a;color:#6bb4ff;border:1px solid #2a4a6a;border-radius:6px;padding:8px;cursor:pointer;font-size:12px;font-weight:bold;">
+          📥 Import Clusters from Link
+        </button>
+      </div>
+
+      <div style="border-top:1px solid #0f3460;padding-top:12px;font-size:10px;color:#666;margin-top:12px;">
+        💡 <b>Tip:</b> Share links contain cluster credentials. Only share with trusted users. Recipients can import clusters with one click.
       </div>
     </div>
 

@@ -4,12 +4,21 @@
 
 **Perfect for:** QE teams, OpenShift administrators, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-2.3.1-red)
+![Version](https://img.shields.io/badge/version-2.3.2-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v2.3.1:**
+**New in v2.3.2:**
+- 🔗 **Share Entire Groups** - One-click button on group headers to share all clusters in a group
+- 📤 **Share Single Clusters** - Share individual clusters via context menu (⋮)
+- 📥 **Quick Import Button** - Import shared clusters directly from main tab without going to Settings
+- 🎨 **Color-Coded Share UI** - Share buttons match group theme colors for visual consistency
+- 🔐 **Flexible Password Options** - Choose to include or exclude passwords when sharing (recommended to exclude)
+- 🚀 **One-Click Team Sharing** - Share cluster configs via simple links (osac://import/...)
+- ✅ **Smart Import Validation** - Automatic duplicate detection and link format validation
+
+**v2.3.1 Features:**
 - 🧹 **Selective Cache Management** - Clear browser cache/cookies without deleting cluster credentials from extension
 - 🔐 **Auto-Capture Credentials** - Automatically captures and pre-fills username/password when you manually login to new clusters
 - 💾 **Smart Credential Storage** - Uses chrome.storage.local to persist captured credentials across OAuth redirects
