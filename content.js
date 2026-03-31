@@ -98,6 +98,25 @@
             username,
             url: window.location.origin
           });
+
+          // Re-enable auto-login for this cluster immediately upon manual login attempt
+          // This ensures auto-login works again after user fixes their credentials
+          chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+            // Use the same matching logic to find the cluster
+            const matchedCluster = matchCluster(clusters);
+            if (matchedCluster && matchedCluster.autoLoginDisabled) {
+              const clusterIndex = clusters.findIndex(c => c.url === matchedCluster.url);
+              if (clusterIndex !== -1) {
+                const clusterName = clusters[clusterIndex].name;
+                delete clusters[clusterIndex].autoLoginDisabled;
+                chrome.storage.local.set({ clusters }, () => {
+                  console.log(`[Auto-Login Content] ✅ Re-enabled auto-login for ${clusterName} - manual login detected`);
+                  // Show success toast after a short delay (wait for page to redirect)
+                  setTimeout(() => showSuccessToast(clusterName), 1500);
+                });
+              }
+            }
+          });
         });
       }
     };
@@ -148,6 +167,89 @@
       // Already on the login form directly
       fillCredentials(user, password);
     }
+  }
+
+  // ── Show error banner for failed login ────────────────
+  function showErrorBanner(clusterName) {
+    // Remove any existing banners first
+    const existingBanner = document.getElementById("os-autologin-error-banner");
+    if (existingBanner) existingBanner.remove();
+
+    const banner = document.createElement("div");
+    banner.id = "os-autologin-error-banner";
+    banner.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #2e1a1a; color: #ffcccc;
+      padding: 12px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-family: Arial, sans-serif; font-size: 13px;
+      border-bottom: 3px solid #ff4444;
+      z-index: 999999; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+      animation: slideDown 0.3s ease-out;
+    `;
+
+    banner.innerHTML = `
+      <style>
+        @keyframes slideDown {
+          from { transform: translateY(-100%); }
+          to { transform: translateY(0); }
+        }
+      </style>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:24px;">⚠️</div>
+        <div>
+          <div style="font-weight:bold;color:#ff6666;">Auto-Login Failed: <span style="color:#ffaaaa;">${clusterName}</span></div>
+          <div style="font-size:11px;color:#cc9999;">Saved password is incorrect. Auto-login disabled for this cluster.</div>
+        </div>
+      </div>
+      <button id="os-error-dismiss" style="
+        background:#ff4444;color:white;border:none;border-radius:6px;
+        padding:7px 16px;cursor:pointer;font-size:12px;font-weight:bold;">
+        ✕ Dismiss
+      </button>
+    `;
+
+    document.body.prepend(banner);
+
+    document.getElementById("os-error-dismiss").addEventListener("click", () => banner.remove());
+
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => { if (banner.parentNode) banner.remove(); }, 10000);
+  }
+
+  // ── Show success toast for re-enabled auto-login ───────
+  function showSuccessToast(clusterName) {
+    const toast = document.createElement("div");
+    toast.style.cssText = `
+      position: fixed; top: 20px; right: 20px;
+      background: #1a3a1a; color: #6bffb4;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-family: Arial, sans-serif; font-size: 13px;
+      border: 2px solid #6bffb4;
+      z-index: 999999; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      font-weight: bold;
+      animation: slideInRight 0.3s ease-out;
+    `;
+
+    toast.innerHTML = `
+      <style>
+        @keyframes slideInRight {
+          from { transform: translateX(400px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      </style>
+      ✅ Auto-login re-enabled for "${clusterName}"
+    `;
+
+    document.body.appendChild(toast);
+
+    // Fade out and remove
+    setTimeout(() => {
+      toast.style.transition = "opacity 0.5s";
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 500);
+    }, 3000);
   }
 
   // ── Show confirmation banner ──────────────────────────
@@ -457,6 +559,35 @@
       }
 
       console.log("[Auto-Login Content] Match found! Cluster:", cluster.name);
+
+      // Check if we're on an authentication error page (login failed)
+      if (currentUrl.includes("reason=authentication_error") || currentUrl.includes("error=login_failed")) {
+        console.log("[Auto-Login Content] ⚠️ Authentication error detected - login failed for", cluster.name);
+        console.log("[Auto-Login Content] Disabling auto-login for this cluster to prevent retry loop");
+
+        // Show error banner to notify user
+        showErrorBanner(cluster.name);
+
+        // Find this cluster in storage and disable auto-login
+        chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+          const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
+          if (clusterIndex !== -1) {
+            clusters[clusterIndex].autoLoginDisabled = true;
+            chrome.storage.local.set({ clusters }, () => {
+              console.log(`[Auto-Login Content] ❌ Auto-login disabled for ${cluster.name} due to authentication error`);
+              console.log(`[Auto-Login Content] Please update credentials and login manually to re-enable`);
+            });
+          }
+        });
+        return;
+      }
+
+      // Check if auto-login is disabled for this cluster (e.g., due to previous login failure)
+      if (cluster.autoLoginDisabled) {
+        console.log("[Auto-Login Content] Auto-login is disabled for this cluster due to previous login failure");
+        console.log("[Auto-Login Content] Please update credentials and login manually to re-enable auto-login");
+        return;
+      }
 
       if (settings.confirm !== false) {
         console.log("[Auto-Login Content] Showing confirmation banner");
@@ -898,7 +1029,24 @@
           console.log("[Auto-Login Content] Auto-showing save form with captured credentials");
           setTimeout(() => showSaveClusterForm(), 1000);
         } else {
-          // Cluster already exists or user dismissed - clear captured credentials
+          // Cluster already exists - check if we need to re-enable auto-login
+          const matchingClusterIndex = clusters.findIndex(c => {
+            try {
+              return new URL(c.url).origin === currentUrl;
+            } catch {
+              return false;
+            }
+          });
+
+          if (matchingClusterIndex !== -1 && clusters[matchingClusterIndex].autoLoginDisabled) {
+            // Re-enable auto-login after successful manual login
+            delete clusters[matchingClusterIndex].autoLoginDisabled;
+            chrome.storage.local.set({ clusters }, () => {
+              console.log(`[Auto-Login Content] ✅ Re-enabled auto-login for ${clusters[matchingClusterIndex].name} after successful manual login`);
+            });
+          }
+
+          // Clear captured credentials
           console.log("[Auto-Login Content] Cluster exists or dismissed, clearing captured credentials");
           chrome.storage.local.remove([
             "os-captured-username",

@@ -439,7 +439,7 @@ function shareCluster(cluster) {
 
     // Create export data for single cluster
     const exportData = {
-      version: "2.3.2",
+      version: "2.3.3",
       timestamp: Date.now(),
       clusters: [{
         name: cluster.name,
@@ -779,7 +779,7 @@ function loadClusters() {
 
           // Create export data for this group
           const exportData = {
-            version: "2.3.2",
+            version: "2.3.3",
             timestamp: Date.now(),
             clusters: group.clusters.map(({ cluster }) => {
               const exported = {
@@ -1155,6 +1155,17 @@ function watchForSuccess(tabId, cluster, btn) {
         }
       }).catch(() => {});
 
+      // Re-enable auto-login for this cluster if it was previously disabled
+      chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+        const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
+        if (clusterIndex !== -1 && clusters[clusterIndex].autoLoginDisabled) {
+          delete clusters[clusterIndex].autoLoginDisabled;
+          chrome.storage.local.set({ clusters }, () => {
+            console.log(`[Auto-Login] Re-enabled auto-login for ${cluster.name} after successful login`);
+          });
+        }
+      });
+
       showStatus("success", `✅ Logged into ${cluster.name}!`);
       if (btn) { btn.disabled = false; btn.textContent = "Login"; }
     }
@@ -1172,7 +1183,18 @@ function watchForSuccess(tabId, cluster, btn) {
         }
       }).catch(() => {});
 
-      showStatus("error", `❌ Login failed — wrong credentials?`);
+      // Disable auto-login for this cluster to prevent infinite retry loops
+      chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+        const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
+        if (clusterIndex !== -1) {
+          clusters[clusterIndex].autoLoginDisabled = true;
+          chrome.storage.local.set({ clusters }, () => {
+            console.log(`[Auto-Login] Disabled auto-login for ${cluster.name} due to login failure`);
+          });
+        }
+      });
+
+      showStatus("error", `❌ Login failed — wrong credentials? Auto-login disabled for this cluster.`);
       if (btn) { btn.disabled = false; btn.textContent = "Login"; }
     }
   };
@@ -2167,7 +2189,7 @@ if (generateShareLinkBtn) {
 
       // Create export data
       const exportData = {
-        version: "2.3.2",
+        version: "2.3.3",
         timestamp: Date.now(),
         clusters: toShare.map(c => {
           const exported = {

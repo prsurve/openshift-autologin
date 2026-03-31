@@ -4,12 +4,20 @@
 
 **Perfect for:** QE teams, OpenShift administrators, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-2.3.2-red)
+![Version](https://img.shields.io/badge/version-2.3.3-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v2.3.2:**
+**New in v2.3.3:**
+- 🚫 **Smart Auto-Login Failure Handling** - Auto-login automatically disables for a cluster when password authentication fails
+- 🔄 **Per-Cluster Disable** - Failed login only affects the specific cluster, not all clusters
+- ✅ **Automatic Re-enable** - Auto-login automatically restores when you manually login successfully with correct credentials
+- ⚠️ **Visual Error Notifications** - Red banner appears when auto-login fails due to incorrect password
+- 🎉 **Success Toast** - Green notification confirms when auto-login is re-enabled after successful manual login
+- 🛑 **No Infinite Retry Loops** - Prevents continuous retry attempts with wrong credentials
+
+**v2.3.2 Features:**
 - 🔗 **Share Entire Groups** - One-click button on group headers to share all clusters in a group
 - 📤 **Share Single Clusters** - Share individual clusters via context menu (⋮)
 - 📥 **Quick Import Button** - Import shared clusters directly from main tab without going to Settings
