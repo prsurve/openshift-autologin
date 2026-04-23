@@ -104,16 +104,24 @@
           chrome.storage.local.get("clusters", ({ clusters = [] }) => {
             // Use the same matching logic to find the cluster
             const matchedCluster = matchCluster(clusters);
-            if (matchedCluster && matchedCluster.autoLoginDisabled) {
-              const clusterIndex = clusters.findIndex(c => c.url === matchedCluster.url);
-              if (clusterIndex !== -1) {
-                const clusterName = clusters[clusterIndex].name;
-                delete clusters[clusterIndex].autoLoginDisabled;
-                chrome.storage.local.set({ clusters }, () => {
-                  console.log(`[Auto-Login Content] ✅ Re-enabled auto-login for ${clusterName} - manual login detected`);
-                  // Show success toast after a short delay (wait for page to redirect)
-                  setTimeout(() => showSuccessToast(clusterName), 1500);
-                });
+            if (matchedCluster) {
+              const sessionKey = `os-autologin-disabled-${matchedCluster.url}`;
+
+              // Clear sessionStorage flag immediately
+              sessionStorage.removeItem(sessionKey);
+              console.log(`[Auto-Login Content] Cleared sessionStorage disable flag for ${matchedCluster.name}`);
+
+              if (matchedCluster.autoLoginDisabled) {
+                const clusterIndex = clusters.findIndex(c => c.url === matchedCluster.url);
+                if (clusterIndex !== -1) {
+                  const clusterName = clusters[clusterIndex].name;
+                  delete clusters[clusterIndex].autoLoginDisabled;
+                  chrome.storage.local.set({ clusters }, () => {
+                    console.log(`[Auto-Login Content] ✅ Re-enabled auto-login for ${clusterName} - manual login detected`);
+                    // Show success toast after a short delay (wait for page to redirect)
+                    setTimeout(() => showSuccessToast(clusterName), 1500);
+                  });
+                }
               }
             }
           });
@@ -568,10 +576,14 @@
         console.log("[Auto-Login Content] ⚠️ Authentication error detected - login failed for", cluster.name);
         console.log("[Auto-Login Content] Disabling auto-login for this cluster to prevent retry loop");
 
+        // IMMEDIATELY set sessionStorage flag to prevent any retries while chrome.storage saves
+        const sessionKey = `os-autologin-disabled-${cluster.url}`;
+        sessionStorage.setItem(sessionKey, "true");
+
         // Show error banner to notify user
         showErrorBanner(cluster.name);
 
-        // Find this cluster in storage and disable auto-login
+        // Find this cluster in storage and disable auto-login (permanent)
         chrome.storage.local.get("clusters", ({ clusters = [] }) => {
           const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
           if (clusterIndex !== -1) {
@@ -582,6 +594,13 @@
             });
           }
         });
+        return;
+      }
+
+      // Check sessionStorage first (immediate check before storage loads)
+      const sessionKey = `os-autologin-disabled-${cluster.url}`;
+      if (sessionStorage.getItem(sessionKey) === "true") {
+        console.log("[Auto-Login Content] Auto-login temporarily disabled (sessionStorage) for this cluster");
         return;
       }
 
@@ -1041,12 +1060,20 @@
             }
           });
 
-          if (matchingClusterIndex !== -1 && clusters[matchingClusterIndex].autoLoginDisabled) {
-            // Re-enable auto-login after successful manual login
-            delete clusters[matchingClusterIndex].autoLoginDisabled;
-            chrome.storage.local.set({ clusters }, () => {
-              console.log(`[Auto-Login Content] ✅ Re-enabled auto-login for ${clusters[matchingClusterIndex].name} after successful manual login`);
-            });
+          if (matchingClusterIndex !== -1) {
+            const matchedCluster = clusters[matchingClusterIndex];
+            const sessionKey = `os-autologin-disabled-${matchedCluster.url}`;
+
+            // Clear sessionStorage flag
+            sessionStorage.removeItem(sessionKey);
+
+            if (matchedCluster.autoLoginDisabled) {
+              // Re-enable auto-login after successful manual login
+              delete clusters[matchingClusterIndex].autoLoginDisabled;
+              chrome.storage.local.set({ clusters }, () => {
+                console.log(`[Auto-Login Content] ✅ Re-enabled auto-login for ${matchedCluster.name} after successful manual login`);
+              });
+            }
           }
 
           // Clear captured credentials
