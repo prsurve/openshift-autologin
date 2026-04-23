@@ -330,6 +330,9 @@
     let sourceClusterUrl = sessionStorage.getItem("os-autologin-source");
     console.log("[Auto-Login Content] Source cluster from session:", sourceClusterUrl);
 
+    // Collect all potential matches with their specificity score
+    const matches = [];
+
     // CRITICAL: On OAuth pages, extract the redirect_uri parameter to determine source cluster
     // This is essential when multiple clusters share the same OAuth server
     if ((currentHost.startsWith("oauth-") || currentUrl.includes("/oauth/")) && !sourceClusterUrl) {
@@ -368,15 +371,16 @@
             sourceClusterUrl = matchingCluster.url;
             sessionStorage.setItem("os-autologin-source", sourceClusterUrl);
             console.log("[Auto-Login Content] Stored source cluster from OAuth redirect_uri:", sourceClusterUrl);
+
+            // CRITICAL: Use this cluster immediately for THIS request (don't wait for sessionStorage)
+            // Give it maximum specificity so it always wins
+            matches.push({ cluster: matchingCluster, specificity: 30000 });
           }
         }
       } catch (e) {
         console.log("[Auto-Login Content] Could not parse OAuth redirect_uri:", e);
       }
     }
-
-    // Collect all potential matches with their specificity score
-    const matches = [];
 
     clusters.forEach(c => {
       try {
@@ -572,7 +576,9 @@
       console.log("[Auto-Login Content] cluster.autoLoginDisabled:", cluster.autoLoginDisabled);
 
       // Check if we're on an authentication error page (login failed)
-      if (currentUrl.includes("reason=authentication_error") || currentUrl.includes("error=login_failed")) {
+      if (currentUrl.includes("reason=authentication_error") ||
+          currentUrl.includes("reason=access_denied") ||
+          currentUrl.includes("error=login_failed")) {
         console.log("[Auto-Login Content] ⚠️ Authentication error detected - login failed for", cluster.name);
         console.log("[Auto-Login Content] Disabling auto-login for this cluster to prevent retry loop");
 
