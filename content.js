@@ -559,6 +559,9 @@
       }
 
       console.log("[Auto-Login Content] Match found! Cluster:", cluster.name);
+      console.log("[Auto-Login Content] Current URL:", currentUrl);
+      console.log("[Auto-Login Content] Has authentication_error:", currentUrl.includes("reason=authentication_error"));
+      console.log("[Auto-Login Content] cluster.autoLoginDisabled:", cluster.autoLoginDisabled);
 
       // Check if we're on an authentication error page (login failed)
       if (currentUrl.includes("reason=authentication_error") || currentUrl.includes("error=login_failed")) {
