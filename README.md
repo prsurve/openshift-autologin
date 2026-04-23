@@ -16,6 +16,9 @@
 - ⚠️ **Visual Error Notifications** - Red banner appears when auto-login fails due to incorrect password
 - 🎉 **Success Toast** - Green notification confirms when auto-login is re-enabled after successful manual login
 - 🛑 **No Infinite Retry Loops** - Prevents continuous retry attempts with wrong credentials
+- 👁️ **Show/Hide Passwords** - View saved credentials with eye icon button on each cluster and toggle password visibility in Add/Edit forms
+- 🔑 **Credentials Modal** - Dedicated modal to view and copy cluster credentials (username and password) with one click
+- 📋 **Quick Copy** - Copy username and password separately with visual confirmation feedback
 
 **v2.3.2 Features:**
 - 🔗 **Share Entire Groups** - One-click button on group headers to share all clusters in a group

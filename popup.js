@@ -238,6 +238,7 @@ function renderClusterCard(cluster, index, clusters) {
         <button class="login-btn ${role.key !== 'unknown' ? 'has-tooltip' : ''}" data-index="${index}">Login</button>
         ${getLoginTooltip(role)}
       </div>
+      <button class="show-password-btn" data-index="${index}" title="Show credentials">👁️</button>
       <button class="menu-btn" data-index="${index}" title="More actions">⋮</button>
       <button class="edit-btn" data-index="${index}" title="Edit cluster">✏️</button>
       <button class="delete-btn" data-index="${index}" title="Remove cluster">✕</button>
@@ -261,6 +262,10 @@ function renderClusterCard(cluster, index, clusters) {
     btn.disabled = true;
     btn.textContent = "...";
     loginToCluster(cluster, btn);
+  });
+
+  div.querySelector(".show-password-btn").addEventListener("click", (e) => {
+    showPasswordModal(cluster);
   });
 
   div.querySelector(".menu-btn").addEventListener("click", (e) => {
@@ -501,7 +506,13 @@ function editCluster(index, cluster, clusters) {
       <label>Username</label>
       <input type="text" id="e-user" placeholder="kubeadmin" autocomplete="off" />
       <label>Password</label>
-      <input type="password" id="e-password" placeholder="••••••••" autocomplete="off" />
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <input type="password" id="e-password" placeholder="••••••••" autocomplete="off" style="flex:1;margin-bottom:0;" />
+        <button type="button" id="e-toggle-password-btn" style="
+          background:#2a2a3a;color:#888;border:1px solid #444;
+          border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;min-width:38px;
+        " title="Show/hide password">👁️</button>
+      </div>
       <label>Role (optional)</label>
       <select id="e-role" style="width:100%;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:12px;margin-bottom:10px;">
         <option value="">Auto-detect</option>
@@ -535,6 +546,26 @@ function editCluster(index, cluster, clusters) {
   document.getElementById("e-notes").value = cluster.notes || "";
 
   editForm.style.display = "block";
+
+  // Add toggle password functionality
+  const togglePasswordBtn = document.getElementById("e-toggle-password-btn");
+  const passwordField = document.getElementById("e-password");
+  if (togglePasswordBtn && passwordField) {
+    // Remove old event listeners
+    togglePasswordBtn.replaceWith(togglePasswordBtn.cloneNode(true));
+    const newToggleBtn = document.getElementById("e-toggle-password-btn");
+    newToggleBtn.addEventListener("click", () => {
+      if (passwordField.type === "password") {
+        passwordField.type = "text";
+        newToggleBtn.textContent = "🙈";
+        newToggleBtn.style.color = "#ffd700";
+      } else {
+        passwordField.type = "password";
+        newToggleBtn.textContent = "👁️";
+        newToggleBtn.style.color = "#888";
+      }
+    });
+  }
 
   // Scroll to form
   editForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -1419,6 +1450,23 @@ document.getElementById("add-btn").addEventListener("click", () => {
   saveFormState(); // Save that form is now open
 });
 
+// Add password toggle functionality for Add Cluster form
+const addTogglePasswordBtn = document.getElementById("f-toggle-password-btn");
+const addPasswordField = document.getElementById("f-password");
+if (addTogglePasswordBtn && addPasswordField) {
+  addTogglePasswordBtn.addEventListener("click", () => {
+    if (addPasswordField.type === "password") {
+      addPasswordField.type = "text";
+      addTogglePasswordBtn.textContent = "🙈";
+      addTogglePasswordBtn.style.color = "#ffd700";
+    } else {
+      addPasswordField.type = "password";
+      addTogglePasswordBtn.textContent = "👁️";
+      addTogglePasswordBtn.style.color = "#888";
+    }
+  });
+}
+
 // Quick import from link button
 const quickImportBtn = document.getElementById("quick-import-btn");
 if (quickImportBtn) {
@@ -2293,6 +2341,150 @@ function showShareLinkModal(link, count, includePasswords) {
 
   // Close modal handler
   document.getElementById("close-share-modal-btn").addEventListener("click", () => {
+    modal.remove();
+  });
+
+  // Close on overlay click
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
+// Show password modal
+function showPasswordModal(cluster) {
+  const modal = document.createElement("div");
+  modal.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background: #1a1a2e; border-radius: 12px; padding: 24px;
+      max-width: 500px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      border: 2px solid #EE0000;
+    ">
+      <div style="font-size:18px;font-weight:bold;color:#eee;margin-bottom:16px;">
+        🔑 Cluster Credentials
+      </div>
+
+      <div style="background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:16px;margin-bottom:16px;">
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;color:#888;margin-bottom:4px;">Cluster Name</div>
+          <div style="color:#eee;font-weight:bold;">${escapeHtml(cluster.name)}</div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;color:#888;margin-bottom:4px;">Console URL</div>
+          <div style="color:#aaa;font-size:12px;word-break:break-all;">${escapeHtml(cluster.url)}</div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;color:#888;margin-bottom:4px;">Username</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="username-field" readonly value="${escapeHtml(cluster.user)}" style="
+              flex:1;background:#16213e;border:1px solid #444;border-radius:6px;
+              padding:8px;color:#6bb4ff;font-size:13px;font-family:monospace;
+            " />
+            <button id="copy-username-btn" style="
+              background:#1a3a5a;color:#6bb4ff;border:1px solid #2a4a6a;
+              border-radius:6px;padding:8px 12px;cursor:pointer;font-size:11px;white-space:nowrap;">
+              📋 Copy
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:0;">
+          <div style="font-size:11px;color:#888;margin-bottom:4px;">Password</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="password-field" type="password" readonly value="${escapeHtml(cluster.password)}" style="
+              flex:1;background:#16213e;border:1px solid #444;border-radius:6px;
+              padding:8px;color:#ff6b6b;font-size:13px;font-family:monospace;
+            " />
+            <button id="toggle-password-btn" style="
+              background:#2a2a3a;color:#eee;border:1px solid #444;
+              border-radius:6px;padding:8px 12px;cursor:pointer;font-size:16px;min-width:40px;">
+              👁️
+            </button>
+            <button id="copy-password-btn" style="
+              background:#1a3a5a;color:#6bb4ff;border:1px solid #2a4a6a;
+              border-radius:6px;padding:8px 12px;cursor:pointer;font-size:11px;white-space:nowrap;">
+              📋 Copy
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#3a1a1a;border:1px solid #4a2a2a;border-radius:6px;padding:10px;margin-bottom:16px;font-size:10px;color:#ffcccc;">
+        ⚠️ <b>Security Warning:</b><br/>
+        Keep your credentials secure. Don't share screenshots or copy passwords to untrusted locations.
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button id="close-password-modal-btn" style="
+          flex:1;background:#EE0000;color:white;border:none;
+          border-radius:6px;padding:10px;cursor:pointer;font-size:13px;font-weight:bold;">
+          ✕ Close
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Toggle password visibility
+  const passwordField = document.getElementById("password-field");
+  const toggleBtn = document.getElementById("toggle-password-btn");
+  toggleBtn.addEventListener("click", () => {
+    if (passwordField.type === "password") {
+      passwordField.type = "text";
+      toggleBtn.textContent = "🙈";
+    } else {
+      passwordField.type = "password";
+      toggleBtn.textContent = "👁️";
+    }
+  });
+
+  // Copy username
+  document.getElementById("copy-username-btn").addEventListener("click", () => {
+    const field = document.getElementById("username-field");
+    field.select();
+    document.execCommand("copy");
+
+    const btn = document.getElementById("copy-username-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "✅ Copied!";
+    btn.style.background = "#1a4a1a";
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = "#1a3a5a";
+    }, 2000);
+  });
+
+  // Copy password
+  document.getElementById("copy-password-btn").addEventListener("click", () => {
+    const field = document.getElementById("password-field");
+    field.type = "text";
+    field.select();
+    document.execCommand("copy");
+    field.type = "password";
+
+    const btn = document.getElementById("copy-password-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "✅ Copied!";
+    btn.style.background = "#1a4a1a";
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = "#1a3a5a";
+    }, 2000);
+  });
+
+  // Close modal
+  document.getElementById("close-password-modal-btn").addEventListener("click", () => {
     modal.remove();
   });
 
