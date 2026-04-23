@@ -225,6 +225,58 @@
     setTimeout(() => { if (banner.parentNode) banner.remove(); }, 10000);
   }
 
+  // ── Show banner for missing cluster ───────────────────
+  function showMissingClusterBanner(appsDomain) {
+    // Remove any existing banners first
+    const existingBanner = document.getElementById("os-missing-cluster-banner");
+    if (existingBanner) return; // Already shown
+
+    const banner = document.createElement("div");
+    banner.id = "os-missing-cluster-banner";
+    banner.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #2e2a1a; color: #ffeecc;
+      padding: 12px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-family: Arial, sans-serif; font-size: 13px;
+      border-bottom: 3px solid #ff9900;
+      z-index: 999999; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+      animation: slideDown 0.3s ease-out;
+    `;
+
+    // Extract a simple name from the apps domain (e.g., "f10-c1" from "apps.f10-c1.apps.f10l040...")
+    const parts = appsDomain.split(".");
+    const clusterName = parts[1] || appsDomain; // Get the part right after "apps."
+
+    banner.innerHTML = `
+      <style>
+        @keyframes slideDown {
+          from { transform: translateY(-100%); }
+          to { transform: translateY(0); }
+        }
+      </style>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:24px;">⚠️</div>
+        <div>
+          <div style="font-weight:bold;color:#ffaa66;">Cluster Not Found: <span style="color:#ffcc99;">${clusterName}</span></div>
+          <div style="font-size:11px;color:#ccaa88;">This cluster is not saved. Please add it in the extension popup to enable auto-login.</div>
+        </div>
+      </div>
+      <button id="os-missing-dismiss" style="
+        background:#ff9900;color:#1a1a1a;border:none;border-radius:6px;
+        padding:7px 16px;cursor:pointer;font-size:12px;font-weight:bold;">
+        ✕ Dismiss
+      </button>
+    `;
+
+    document.body.prepend(banner);
+
+    document.getElementById("os-missing-dismiss").addEventListener("click", () => banner.remove());
+
+    // Auto-dismiss after 15 seconds
+    setTimeout(() => { if (banner.parentNode) banner.remove(); }, 15000);
+  }
+
   // ── Show success toast for re-enabled auto-login ───────
   function showSuccessToast(clusterName) {
     const toast = document.createElement("div");
@@ -360,21 +412,61 @@
           const redirectHost = new URL(decodedRedirectUri).hostname;
           console.log("[Auto-Login Content] Redirect hostname:", redirectHost);
 
-          // Find cluster that matches this redirect hostname
-          const matchingCluster = clusters.find(c => {
+          // Extract apps domain from redirect hostname
+          // e.g., console-openshift-console.apps.f10-c1.apps.f10l040.fusion.tadn.ibm.com
+          //    -> apps.f10-c1.apps.f10l040.fusion.tadn.ibm.com
+          const redirectParts = redirectHost.split(".");
+          const redirectAppsIndex = redirectParts.findIndex(p => p === "apps");
+          const redirectAppsDomain = redirectAppsIndex >= 0 ? redirectParts.slice(redirectAppsIndex).join(".") : null;
+
+          console.log("[Auto-Login Content] Redirect apps domain:", redirectAppsDomain);
+
+          // Log all clusters and their apps domains for debugging
+          console.log("[Auto-Login Content] All clusters:");
+          clusters.forEach(c => {
             try {
-              return new URL(c.url).hostname === redirectHost;
-            } catch { return false; }
+              const clusterHost = new URL(c.url).hostname;
+              const clusterParts = clusterHost.split(".");
+              const clusterAppsIndex = clusterParts.findIndex(p => p === "apps");
+              const clusterAppsDomain = clusterAppsIndex >= 0 ? clusterParts.slice(clusterAppsIndex).join(".") : null;
+              console.log(`  - ${c.name}: URL=${c.url}, hostname=${clusterHost}, apps domain=${clusterAppsDomain}`);
+            } catch (e) {
+              console.log(`  - ${c.name}: URL=${c.url}, ERROR: ${e.message}`);
+            }
           });
+
+          // Find cluster that matches this apps domain
+          const matchingCluster = redirectAppsDomain ? clusters.find(c => {
+            try {
+              const clusterHost = new URL(c.url).hostname;
+              const clusterParts = clusterHost.split(".");
+              const clusterAppsIndex = clusterParts.findIndex(p => p === "apps");
+              const clusterAppsDomain = clusterAppsIndex >= 0 ? clusterParts.slice(clusterAppsIndex).join(".") : null;
+
+              console.log(`[Auto-Login Content] Checking cluster ${c.name}: apps domain = ${clusterAppsDomain}, match = ${clusterAppsDomain === redirectAppsDomain}`);
+
+              // Match if apps domains are identical
+              return clusterAppsDomain === redirectAppsDomain;
+            } catch { return false; }
+          }) : null;
 
           if (matchingCluster) {
             sourceClusterUrl = matchingCluster.url;
             sessionStorage.setItem("os-autologin-source", sourceClusterUrl);
-            console.log("[Auto-Login Content] Stored source cluster from OAuth redirect_uri:", sourceClusterUrl);
+            console.log("[Auto-Login Content] ✅ Matched cluster from redirect_uri:", matchingCluster.name, matchingCluster.url);
 
             // CRITICAL: Use this cluster immediately for THIS request (don't wait for sessionStorage)
             // Give it maximum specificity so it always wins
             matches.push({ cluster: matchingCluster, specificity: 30000 });
+          } else {
+            console.log("[Auto-Login Content] ⚠️ No cluster found matching redirect apps domain:", redirectAppsDomain);
+            console.log("[Auto-Login Content] ⚠️ Blocking auto-login to prevent using wrong cluster credentials");
+
+            // CRITICAL: Block all other matches to prevent using wrong cluster credentials
+            // When redirect_uri points to a cluster we don't have saved (e.g., f10-c1),
+            // we should NOT fall back to a similar cluster (e.g., f10 base cluster)
+            // Set a flag to block auto-login for this page load
+            sessionStorage.setItem("os-autologin-blocked-missing-cluster", redirectAppsDomain);
           }
         }
       } catch (e) {
@@ -559,6 +651,20 @@
           sessionStorage.setItem("os-autologin-source", exactMatch.url);
           console.log("[Auto-Login Content] Stored source cluster for OAuth tracking:", exactMatch.url);
         }
+      }
+
+      // Check if auto-login was blocked due to missing cluster
+      const blockedDomain = sessionStorage.getItem("os-autologin-blocked-missing-cluster");
+      if (blockedDomain) {
+        console.log("[Auto-Login Content] ⛔ Auto-login blocked - redirect points to unsaved cluster");
+        console.log("[Auto-Login Content] Missing cluster apps domain:", blockedDomain);
+        console.log("[Auto-Login Content] Please add this cluster to enable auto-login");
+
+        // Show a helpful banner
+        showMissingClusterBanner(blockedDomain);
+
+        // Don't clear the flag - keep it for this session to prevent retries
+        return;
       }
 
       const cluster = matchCluster(clusters);
