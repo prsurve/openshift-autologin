@@ -4,12 +4,19 @@
 
 **Perfect for:** QE teams, OpenShift administrators, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-2.3.3-red)
+![Version](https://img.shields.io/badge/version-2.3.4-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v2.3.3:**
+**New in v2.3.4:**
+- 🎯 **HCP Cluster Protection** - Prevents auto-login when accessing unsaved HCP (Hosted Control Plane) clusters
+- 🛡️ **Smart Credential Matching** - Uses OAuth redirect_uri to identify the correct cluster and prevent wrong credential usage
+- ⚠️ **Missing Cluster Detection** - Shows helpful warning banner when trying to access a cluster that isn't saved yet
+- 🔒 **Fallback Prevention** - Blocks auto-login instead of falling back to similar cluster names (e.g., won't use f10 credentials for f10-c1)
+- 📊 **Enhanced Debug Logging** - Better visibility into cluster matching and apps domain extraction for troubleshooting
+
+**v2.3.3 Features:**
 - 🚫 **Smart Auto-Login Failure Handling** - Auto-login automatically disables for a cluster when password authentication fails
 - 🔄 **Per-Cluster Disable** - Failed login only affects the specific cluster, not all clusters
 - ✅ **Automatic Re-enable** - Auto-login automatically restores when you manually login successfully with correct credentials
