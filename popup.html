@@ -239,6 +239,17 @@
     }
     .menu-btn:hover { color: #90b8f0; background: #1a2a3a; }
 
+    .show-password-btn {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+    .show-password-btn:hover { color: #ffd700; background: #2a2a1a; }
+
     .edit-btn {
       background: none;
       border: none;
@@ -714,7 +725,13 @@
       <label>Username</label>
       <input type="text"     id="f-user"     placeholder="kubeadmin (default)" autocomplete="off" />
       <label>Password</label>
-      <input type="password" id="f-password" placeholder="••••••••" autocomplete="off" />
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <input type="password" id="f-password" placeholder="••••••••" autocomplete="off" style="flex:1;margin-bottom:0;" />
+        <button type="button" id="f-toggle-password-btn" style="
+          background:#2a2a3a;color:#888;border:1px solid #444;
+          border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;min-width:38px;
+        " title="Show/hide password">👁️</button>
+      </div>
       <label>Role (optional)</label>
       <select id="f-role" style="width:100%;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:12px;margin-bottom:10px;">
         <option value="">Auto-detect</option>
