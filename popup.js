@@ -45,6 +45,34 @@ async function corsFetch(url, options = {}) {
   });
 }
 
+// ── Get the correct login URL for a cluster ──
+function getLoginUrl(cluster) {
+  const type = cluster.type || "openshift";
+
+  if (type === "vsphere") {
+    try {
+      const url = new URL(cluster.url);
+      // If the URL is just the root or doesn't have /ui/ path, add it
+      if (url.pathname === "/" || url.pathname === "") {
+        url.pathname = "/ui/";
+        return url.toString();
+      }
+      // If it has /ui but no trailing slash, add it
+      if (url.pathname === "/ui") {
+        url.pathname = "/ui/";
+        return url.toString();
+      }
+      return cluster.url;
+    } catch (e) {
+      console.error("Invalid URL:", cluster.url);
+      return cluster.url;
+    }
+  }
+
+  // For OpenShift, use the URL as-is
+  return cluster.url;
+}
+
 // ── Format relative time ──
 function formatRelativeTime(timestamp) {
   if (!timestamp) return null;
@@ -89,7 +117,36 @@ function getGroupColor(groupName) {
 
 // ── Detect cluster role from name, URL, or explicit role field ──
 function detectRole(cluster) {
-  // If the imported file already has a role field (set by the download script), use it directly
+  const type = cluster.type || "openshift";
+
+  // vSphere role detection
+  if (type === "vsphere") {
+    const vSphereRoleMap = {
+      "vcenter": { key: "vcenter", label: "vCenter", icon: "🔷", desc: "VMware vCenter Server" },
+      "esxi":    { key: "esxi",    label: "ESXi",    icon: "⚙️",  desc: "VMware ESXi Host" },
+      "unknown": { key: "unknown", label: "VMware",  icon: "🔷", desc: "VMware platform" },
+    };
+
+    if (cluster.role && vSphereRoleMap[cluster.role]) return vSphereRoleMap[cluster.role];
+
+    const name = (cluster.name || "").toLowerCase();
+    const url = (cluster.url || "").toLowerCase();
+    const combined = name + " " + url;
+
+    // vCenter patterns
+    if (/vcenter|vc\d+/.test(combined)) {
+      return vSphereRoleMap.vcenter;
+    }
+
+    // ESXi patterns
+    if (/esxi|esx\d+/.test(combined)) {
+      return vSphereRoleMap.esxi;
+    }
+
+    return vSphereRoleMap.unknown;
+  }
+
+  // OpenShift role detection
   const roleMap = {
     "hub":         { key: "hub",         label: "Active Hub",   icon: "🟣", desc: "Active ACM Hub — manages all spoke clusters" },
     "hub-passive": { key: "hub-passive", label: "Passive Hub",  icon: "🔵", desc: "Passive ACM Hub (Disaster Recovery standby)" },
@@ -205,6 +262,16 @@ function renderClusterCard(cluster, index, clusters) {
     }
   }
 
+  // Build platform badge HTML
+  const type = cluster.type || "openshift";
+  const platformIcon = type === "vsphere" ? "🔷" : "🔴";
+  const platformLabel = type === "vsphere" ? "vSphere" : "OpenShift";
+  const platformBg = type === "vsphere" ? "#1a2a4e" : "#3a1a1a";
+  const platformColor = type === "vsphere" ? "#64b5f6" : "#f44336";
+  const platformBorder = type === "vsphere" ? "#3b82f6" : "#c62828";
+
+  const platformBadgeHTML = `<span class="platform-badge ${type}" style="font-size:9px;padding:2px 7px;border-radius:10px;background:${platformBg};color:${platformColor};border:1px solid ${platformBorder};margin-left:6px;" title="Platform: ${platformLabel}">${platformIcon} ${platformLabel}</span>`;
+
   // Pin star icon
   const pinIcon = cluster.pinned ? '⭐' : '☆';
   const pinTitle = cluster.pinned ? 'Unpin from top' : 'Pin to top';
@@ -216,6 +283,7 @@ function renderClusterCard(cluster, index, clusters) {
     <div style="min-width:0;flex:1;">
       <div class="cluster-name">
         ${escapeHtml(cluster.name)}
+        ${platformBadgeHTML}
         ${cluster.notes ? `<span style="font-size:10px;color:#666;margin-left:6px;" title="Notes: ${escapeHtml(cluster.notes)}">📝</span>` : ''}
       </div>
       <div class="cluster-meta">
@@ -444,12 +512,13 @@ function shareCluster(cluster) {
 
     // Create export data for single cluster
     const exportData = {
-      version: "2.3.4",
+      version: "2.4.0",
       timestamp: Date.now(),
       clusters: [{
         name: cluster.name,
         url: cluster.url,
-        user: cluster.user
+        user: cluster.user,
+        type: cluster.type || "openshift"
       }]
     };
 
@@ -513,6 +582,11 @@ function editCluster(index, cluster, clusters) {
           border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;min-width:38px;
         " title="Show/hide password">👁️</button>
       </div>
+      <label>Platform Type</label>
+      <select id="e-type" style="width:100%;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:12px;margin-bottom:10px;">
+        <option value="openshift">🔴 OpenShift</option>
+        <option value="vsphere">🔷 vSphere / vCenter</option>
+      </select>
       <label>Role (optional)</label>
       <select id="e-role" style="width:100%;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:7px 10px;color:#eee;font-size:12px;margin-bottom:10px;">
         <option value="">Auto-detect</option>
@@ -540,10 +614,46 @@ function editCluster(index, cluster, clusters) {
   document.getElementById("e-url").value = cluster.url || "";
   document.getElementById("e-user").value = cluster.user || "";
   document.getElementById("e-password").value = cluster.password || "";
+  document.getElementById("e-type").value = cluster.type || "openshift";
   document.getElementById("e-role").value = cluster.role || "";
   document.getElementById("e-group").value = cluster.group || "";
   document.getElementById("e-tags").value = (cluster.tags || []).join(", ");
   document.getElementById("e-notes").value = cluster.notes || "";
+
+  // Update role options based on platform type
+  const updateEditRoleOptions = () => {
+    const type = document.getElementById("e-type").value;
+    const roleSelect = document.getElementById("e-role");
+    const currentRole = roleSelect.value;
+
+    if (type === "vsphere") {
+      roleSelect.innerHTML = `
+        <option value="">Auto-detect</option>
+        <option value="vcenter">vCenter Server</option>
+        <option value="esxi">ESXi Host</option>
+      `;
+    } else {
+      roleSelect.innerHTML = `
+        <option value="">Auto-detect</option>
+        <option value="hub">Active Hub</option>
+        <option value="hub-passive">Passive Hub</option>
+        <option value="primary">Primary C1</option>
+        <option value="secondary">Secondary C2</option>
+      `;
+    }
+
+    // Try to preserve the current role if it exists in new options
+    if (currentRole && Array.from(roleSelect.options).some(opt => opt.value === currentRole)) {
+      roleSelect.value = currentRole;
+    }
+  };
+
+  // Set up type change listener
+  const typeSelect = document.getElementById("e-type");
+  typeSelect.addEventListener("change", updateEditRoleOptions);
+
+  // Initial role options setup
+  updateEditRoleOptions();
 
   editForm.style.display = "block";
 
@@ -578,12 +688,29 @@ function editCluster(index, cluster, clusters) {
     const rawUrl = document.getElementById("e-url").value.trim();
     const user = document.getElementById("e-user").value.trim();
     const password = document.getElementById("e-password").value;
+    const type = document.getElementById("e-type").value || "openshift";
     const role = document.getElementById("e-role").value.trim();
     const group = document.getElementById("e-group").value.trim();
     const tagsInput = document.getElementById("e-tags").value.trim();
     const notes = document.getElementById("e-notes").value.trim();
 
-    const url = normalizeURL(rawUrl);
+    let url = normalizeURL(rawUrl);
+
+    // Normalize vSphere URLs to ensure they point to /ui/
+    if (type === "vsphere") {
+      try {
+        const urlObj = new URL(url);
+        if (urlObj.pathname === "/" || urlObj.pathname === "") {
+          urlObj.pathname = "/ui/";
+          url = urlObj.toString();
+        } else if (urlObj.pathname === "/ui") {
+          urlObj.pathname = "/ui/";
+          url = urlObj.toString();
+        }
+      } catch (e) {
+        console.error("Error normalizing vSphere URL:", e);
+      }
+    }
 
     if (!name || !url || !user || !password) {
       showStatus("error", "❌ All fields are required");
@@ -603,10 +730,13 @@ function editCluster(index, cluster, clusters) {
       name,
       url,
       user,
-      password
+      password,
+      type
     };
     if (role) clusters[index].role = role;
+    else delete clusters[index].role;
     if (group) clusters[index].group = group;
+    else delete clusters[index].group;
     if (tags.length > 0) clusters[index].tags = tags;
     else delete clusters[index].tags;
     if (notes) clusters[index].notes = notes;
@@ -810,13 +940,14 @@ function loadClusters() {
 
           // Create export data for this group
           const exportData = {
-            version: "2.3.4",
+            version: "2.4.0",
             timestamp: Date.now(),
             clusters: group.clusters.map(({ cluster }) => {
               const exported = {
                 name: cluster.name,
                 url: cluster.url,
-                user: cluster.user
+                user: cluster.user,
+                type: cluster.type || "openshift"
               };
 
               if (includePasswords) {
@@ -877,7 +1008,7 @@ function loadClusters() {
             // Sequential: open one after another with delay
             group.clusters.forEach(({ cluster }, idx) => {
               setTimeout(() => {
-                chrome.tabs.create({ url: cluster.url, active: !openInBackground }, (tab) => {
+                chrome.tabs.create({ url: getLoginUrl(cluster), active: !openInBackground }, (tab) => {
                   waitForTabAndLogin(tab.id, cluster, null);
                 });
               }, idx * 1000); // 1 second between each
@@ -885,7 +1016,7 @@ function loadClusters() {
           } else {
             // Parallel: open all at once
             group.clusters.forEach(({ cluster }) => {
-              chrome.tabs.create({ url: cluster.url, active: !openInBackground }, (tab) => {
+              chrome.tabs.create({ url: getLoginUrl(cluster), active: !openInBackground }, (tab) => {
                 waitForTabAndLogin(tab.id, cluster, null);
               });
             });
@@ -918,6 +1049,9 @@ function loadClusters() {
 function loginToCluster(cluster, btn, forceNewTab = false) {
   showStatus("info", `Opening ${cluster.name}...`);
 
+  // Get the correct login URL based on cluster type
+  const loginUrl = getLoginUrl(cluster);
+
   // Update last login timestamp
   chrome.storage.local.get("clusters", ({ clusters = [] }) => {
     const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
@@ -932,13 +1066,13 @@ function loginToCluster(cluster, btn, forceNewTab = false) {
 
     if (openNewTab) {
       // Open in new tab
-      chrome.tabs.create({ url: cluster.url }, (tab) => {
+      chrome.tabs.create({ url: loginUrl }, (tab) => {
         waitForTabAndLogin(tab.id, cluster, btn);
       });
     } else {
       // Open in current tab
       chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-        chrome.tabs.update(tab.id, { url: cluster.url }, (updatedTab) => {
+        chrome.tabs.update(tab.id, { url: loginUrl }, (updatedTab) => {
           waitForTabAndLogin(updatedTab.id, cluster, btn);
         });
       });
@@ -1389,6 +1523,7 @@ function saveFormState() {
     url: document.getElementById("f-url").value,
     user: document.getElementById("f-user").value,
     password: document.getElementById("f-password").value,
+    type: document.getElementById("f-type").value,
     role: document.getElementById("f-role").value,
     group: document.getElementById("f-group").value,
   };
@@ -1405,6 +1540,7 @@ function restoreFormState() {
     if (formState.url) document.getElementById("f-url").value = formState.url;
     if (formState.user) document.getElementById("f-user").value = formState.user;
     if (formState.password) document.getElementById("f-password").value = formState.password;
+    if (formState.type) document.getElementById("f-type").value = formState.type;
     if (formState.role) document.getElementById("f-role").value = formState.role;
     if (formState.group) document.getElementById("f-group").value = formState.group;
 
@@ -1426,7 +1562,7 @@ function clearFormState() {
 
 // Auto-save form state on input changes
 function setupFormAutosave() {
-  ["f-name", "f-url", "f-user", "f-password", "f-role", "f-group"].forEach(id => {
+  ["f-name", "f-url", "f-user", "f-password", "f-type", "f-role", "f-group"].forEach(id => {
     const field = document.getElementById(id);
     field.addEventListener("input", saveFormState);
     field.addEventListener("change", saveFormState);
@@ -1463,6 +1599,32 @@ if (addTogglePasswordBtn && addPasswordField) {
       addPasswordField.type = "password";
       addTogglePasswordBtn.textContent = "👁️";
       addTogglePasswordBtn.style.color = "#888";
+    }
+  });
+}
+
+// Dynamic role options based on platform type
+const typeSelect = document.getElementById("f-type");
+const roleSelect = document.getElementById("f-role");
+if (typeSelect && roleSelect) {
+  typeSelect.addEventListener("change", (e) => {
+    const type = e.target.value;
+
+    if (type === "vsphere") {
+      roleSelect.innerHTML = `
+        <option value="">Auto-detect</option>
+        <option value="vcenter">vCenter Server</option>
+        <option value="esxi">ESXi Host</option>
+      `;
+    } else {
+      // OpenShift roles
+      roleSelect.innerHTML = `
+        <option value="">Auto-detect</option>
+        <option value="hub">Active Hub</option>
+        <option value="hub-passive">Passive Hub</option>
+        <option value="primary">Primary C1</option>
+        <option value="secondary">Secondary C2</option>
+      `;
     }
   });
 }
@@ -1512,6 +1674,10 @@ if (quickImportBtn) {
           if (existingUrls.has(imported.url)) {
             skipped++;
           } else {
+            // Add type field if missing (default to openshift for backward compatibility)
+            if (!imported.type) {
+              imported.type = "openshift";
+            }
             clusters.push(imported);
             added++;
           }
@@ -1542,7 +1708,7 @@ document.getElementById("cancel-btn").addEventListener("click", () => {
     document.getElementById("quick-import-btn").style.display = "block";
   }
   // Clear form fields
-  ["f-name","f-url","f-user","f-password","f-role","f-group"].forEach(id => {
+  ["f-name","f-url","f-user","f-password","f-type","f-role","f-group","f-tags","f-notes"].forEach(id => {
     const el = document.getElementById(id);
     if (el.tagName === 'SELECT') el.selectedIndex = 0;
     else el.value = "";
@@ -1575,6 +1741,7 @@ document.getElementById("save-btn").addEventListener("click", () => {
   const rawUrl   = document.getElementById("f-url").value.trim();
   const user     = document.getElementById("f-user").value.trim();
   const password = document.getElementById("f-password").value;
+  const type     = document.getElementById("f-type").value || "openshift";
   const role     = document.getElementById("f-role").value.trim();
   const group    = document.getElementById("f-group").value.trim();
   const tagsInput = document.getElementById("f-tags").value.trim();
@@ -1595,7 +1762,7 @@ document.getElementById("save-btn").addEventListener("click", () => {
   const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
 
   chrome.storage.local.get("clusters", ({ clusters = [] }) => {
-    const newCluster = { name, url, user, password };
+    const newCluster = { name, url, user, password, type };
     if (role) newCluster.role = role;
     if (group) newCluster.group = group;
     if (tags.length > 0) newCluster.tags = tags;
@@ -1605,7 +1772,7 @@ document.getElementById("save-btn").addEventListener("click", () => {
     chrome.storage.local.set({ clusters }, () => {
       document.getElementById("add-form").style.display = "none";
       document.getElementById("add-btn").style.display  = "block";
-      ["f-name","f-url","f-user","f-password","f-role","f-group","f-tags","f-notes"].forEach(id => {
+      ["f-name","f-url","f-user","f-password","f-type","f-role","f-group","f-tags","f-notes"].forEach(id => {
         const el = document.getElementById(id);
         if (el.tagName === 'SELECT') el.selectedIndex = 0;
         else el.value = "";
@@ -2237,13 +2404,14 @@ if (generateShareLinkBtn) {
 
       // Create export data
       const exportData = {
-        version: "2.3.4",
+        version: "2.4.0",
         timestamp: Date.now(),
         clusters: toShare.map(c => {
           const exported = {
             name: c.name,
             url: c.url,
-            user: c.user
+            user: c.user,
+            type: c.type || "openshift"
           };
 
           if (includePasswords) {
@@ -2543,6 +2711,10 @@ if (importShareLinkBtn) {
           if (existingUrls.has(imported.url)) {
             skipped++;
           } else {
+            // Add type field if missing (default to openshift for backward compatibility)
+            if (!imported.type) {
+              imported.type = "openshift";
+            }
             clusters.push(imported);
             added++;
           }
@@ -2568,8 +2740,10 @@ if (importShareLinkBtn) {
 }
 
 // ── Search / Filter ───────────────────────────────────
-document.getElementById("search-clusters").addEventListener("input", (e) => {
-  const query = e.target.value.toLowerCase();
+// Combined filter function for search and type
+function filterClusters() {
+  const query = document.getElementById("search-clusters").value.toLowerCase();
+  const typeFilter = document.getElementById("filter-type").value;
   const items = document.querySelectorAll(".cluster-item, .cluster-group");
 
   items.forEach(item => {
@@ -2582,7 +2756,19 @@ document.getElementById("search-clusters").addEventListener("input", (e) => {
       clusterCards.forEach(card => {
         const name = card.querySelector(".cluster-name")?.textContent.toLowerCase() || "";
         const url = card.querySelector(".cluster-url")?.textContent.toLowerCase() || "";
-        if (name.includes(query) || url.includes(query)) hasMatch = true;
+        const platformBadge = card.querySelector(".platform-badge");
+        const clusterType = platformBadge?.classList.contains("vsphere") ? "vsphere" : "openshift";
+
+        // Check search query match
+        const matchesQuery = name.includes(query) || url.includes(query);
+
+        // Check type filter match
+        const matchesType = !typeFilter || clusterType === typeFilter;
+
+        if (matchesQuery && matchesType) hasMatch = true;
+
+        // Hide/show individual cards within group
+        card.style.display = (matchesQuery && matchesType) ? "" : "none";
       });
 
       item.style.display = hasMatch ? "" : "none";
@@ -2590,10 +2776,19 @@ document.getElementById("search-clusters").addEventListener("input", (e) => {
       // For individual cluster items
       const name = item.querySelector(".cluster-name")?.textContent.toLowerCase() || "";
       const url = item.querySelector(".cluster-url")?.textContent.toLowerCase() || "";
-      item.style.display = (name.includes(query) || url.includes(query)) ? "" : "none";
+      const platformBadge = item.querySelector(".platform-badge");
+      const clusterType = platformBadge?.classList.contains("vsphere") ? "vsphere" : "openshift";
+
+      const matchesQuery = name.includes(query) || url.includes(query);
+      const matchesType = !typeFilter || clusterType === typeFilter;
+
+      item.style.display = (matchesQuery && matchesType) ? "" : "none";
     }
   });
-});
+}
+
+document.getElementById("search-clusters").addEventListener("input", filterClusters);
+document.getElementById("filter-type").addEventListener("change", filterClusters);
 
 // ── Bulk Actions ──────────────────────────────────────
 function updateBulkActionsBar() {

@@ -1,6 +1,6 @@
 // background.js — service worker
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   // Set default settings on install
   chrome.storage.local.get("settings", ({ settings }) => {
     if (!settings) {
@@ -14,8 +14,43 @@ chrome.runtime.onInstalled.addListener(() => {
       });
     }
   });
+
+  // Run migration on update
+  if (details.reason === "update") {
+    migrateToV24();
+  }
+
   console.log("OpenShift Auto-Login installed.");
 });
+
+// ════════════════════════════════════════════════════════
+// MIGRATION LOGIC FOR v2.4.0
+// ════════════════════════════════════════════════════════
+
+function migrateToV24() {
+  console.log("[Migration] Starting v2.4.0 migration...");
+
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    let migrated = false;
+
+    const updatedClusters = clusters.map(cluster => {
+      // Add type field if missing (default to openshift for backward compatibility)
+      if (!cluster.type) {
+        cluster.type = "openshift";
+        migrated = true;
+      }
+      return cluster;
+    });
+
+    if (migrated) {
+      chrome.storage.local.set({ clusters: updatedClusters }, () => {
+        console.log(`[Migration] ✅ Migrated ${updatedClusters.length} clusters to v2.4.0 schema (added type field)`);
+      });
+    } else {
+      console.log("[Migration] No migration needed - all clusters already have type field");
+    }
+  });
+}
 
 // ════════════════════════════════════════════════════════
 // CORS-FREE FETCH

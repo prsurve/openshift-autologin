@@ -1,15 +1,25 @@
-# 🔴 OpenShift Auto-Login
+# 🔴 OpenShift & vSphere Auto-Login
 
-> A powerful Chrome extension to manage and auto-login to multiple OpenShift clusters. Supports batch login, RDR grouping, drag-and-drop organization, and more.
+> A powerful Chrome extension to manage and auto-login to multiple OpenShift and vSphere/vCenter instances. Supports batch login, RDR grouping, drag-and-drop organization, and more.
 
-**Perfect for:** QE teams, OpenShift administrators, and anyone managing multiple clusters across environments.
+**Perfect for:** QE teams, OpenShift administrators, VMware admins, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-2.3.4-red)
+![Version](https://img.shields.io/badge/version-2.4.0-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v2.3.4:**
+**New in v2.4.0:**
+- 🔷 **vSphere/vCenter Support** - Auto-login now works for VMware vSphere and vCenter instances (versions 8 & 9)
+- 🎯 **Multi-Platform Architecture** - Unified extension supporting both OpenShift and vSphere platforms
+- 🏷️ **Platform Type Selector** - Choose cluster type (OpenShift or vSphere) when adding clusters
+- 🎨 **Visual Platform Badges** - Color-coded badges distinguish vSphere (blue 🔷) from OpenShift (red 🔴) clusters
+- 🔍 **Platform Filtering** - Filter cluster list by platform type (All / OpenShift / vSphere)
+- ⚙️ **vSphere Role Detection** - Auto-detects vCenter Server vs ESXi Host roles
+- 🛡️ **Vendor-Specific Matching** - Separate cluster matching logic for OpenShift and vSphere URLs
+- 🔄 **Backward Compatible** - Existing OpenShift clusters automatically migrated with zero data loss
+
+**v2.3.4 Features:**
 - 🎯 **HCP Cluster Protection** - Prevents auto-login when accessing unsaved HCP (Hosted Control Plane) clusters
 - 🛡️ **Smart Credential Matching** - Uses OAuth redirect_uri to identify the correct cluster and prevent wrong credential usage
 - ⚠️ **Missing Cluster Detection** - Shows helpful warning banner when trying to access a cluster that isn't saved yet
