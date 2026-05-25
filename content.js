@@ -1,7 +1,29 @@
 // content.js — injected into every page
-// Detects OpenShift login page and auto-fills credentials if enabled
+// Detects OpenShift and vSphere/vCenter login pages and auto-fills credentials if enabled
 
 (function () {
+
+  // ── Vendor Detection Registry ──────────────────────────
+  const DETECTORS = {
+    openshift: {
+      selectors: {
+        username: ["#inputUsername"],
+        password: ["#inputPassword"],
+        submit: ["button[type='submit']", "input[type='submit']"]
+      },
+      urlPatterns: [/oauth-openshift/, /\/oauth\//, /\/login.*openshift/],
+      titlePatterns: [/openshift.*login/i, /openshift.*log in/i]
+    },
+    vsphere: {
+      selectors: {
+        username: ["#username", "input[name='username']", "input[type='text'][class*='login']", "input[id*='username']"],
+        password: ["#password", "input[name='password']", "input[type='password'][class*='login']", "input[id*='password']"],
+        submit: ["#submit", "button[type='submit']", "input[type='submit']", "button[class*='login']", "button[id*='submit']"]
+      },
+      urlPatterns: [/\/ui\//, /\/vsphere-client\//, /vcenter/i],
+      titlePatterns: [/vsphere.*client/i, /vcenter/i, /vmware.*login/i, /vsphere.*login/i]
+    }
+  };
 
   // ── Check if this is an OpenShift login page ──────────
   // Works on both the console login page AND the OAuth server page
@@ -32,6 +54,63 @@
     return (hasUser && hasPass && hasSubmit) || isIdpPage || (isOAuthUrl && (hasUser || isIdpPage)) || hasOSTitle;
   }
 
+  // ── Check if this is a vSphere/vCenter login page ──────
+  function isVSphereLoginPage() {
+    const detector = DETECTORS.vsphere;
+
+    // Check for login form fields (try multiple selectors)
+    let hasUser = false;
+    let hasPass = false;
+    let hasSubmit = false;
+
+    for (const sel of detector.selectors.username) {
+      if (document.querySelector(sel)) {
+        hasUser = true;
+        break;
+      }
+    }
+
+    for (const sel of detector.selectors.password) {
+      if (document.querySelector(sel)) {
+        hasPass = true;
+        break;
+      }
+    }
+
+    for (const sel of detector.selectors.submit) {
+      if (document.querySelector(sel)) {
+        hasSubmit = true;
+        break;
+      }
+    }
+
+    // Check URL patterns
+    const url = window.location.href;
+    const hasVSphereUrl = detector.urlPatterns.some(pattern => pattern.test(url));
+
+    // Check page title
+    const title = document.title.toLowerCase();
+    const hasVSphereTitle = detector.titlePatterns.some(pattern => pattern.test(title));
+
+    console.log("[Auto-Login Content] vSphere detection details:", {
+      hasUser, hasPass, hasSubmit, hasVSphereUrl, hasVSphereTitle,
+      url, title
+    });
+
+    return (hasUser && hasPass && hasSubmit) || hasVSphereUrl || hasVSphereTitle;
+  }
+
+  // ── Detect vendor type (openshift, vsphere, or null) ──
+  function detectVendor() {
+    if (isOpenShiftLoginPage()) {
+      return "openshift";
+    }
+    if (isVSphereLoginPage()) {
+      return "vsphere";
+    }
+    return null;
+  }
+
   // ── Native value setter (bypasses React/Angular) ──────
   function setFieldValue(field, value) {
     field.focus();
@@ -45,13 +124,40 @@
   }
 
   // ── Fill credentials and submit ───────────────────────
-  function fillCredentials(user, password) {
-    const userField = document.querySelector("#inputUsername");
-    const passField = document.querySelector("#inputPassword");
-    const submitBtn = document.querySelector("button[type='submit']") ||
-                      document.querySelector("input[type='submit']");
+  function fillCredentials(user, password, vendor = "openshift") {
+    const detector = DETECTORS[vendor];
 
-    if (!userField || !passField) return false;
+    if (!detector) {
+      console.error(`[Auto-Login Content] Unknown vendor: ${vendor}`);
+      return false;
+    }
+
+    // Find fields using vendor-specific selectors
+    let userField = null;
+    let passField = null;
+    let submitBtn = null;
+
+    for (const sel of detector.selectors.username) {
+      userField = document.querySelector(sel);
+      if (userField) break;
+    }
+
+    for (const sel of detector.selectors.password) {
+      passField = document.querySelector(sel);
+      if (passField) break;
+    }
+
+    for (const sel of detector.selectors.submit) {
+      submitBtn = document.querySelector(sel);
+      if (submitBtn) break;
+    }
+
+    if (!userField || !passField) {
+      console.log(`[Auto-Login Content] ${vendor} login fields not found`);
+      return false;
+    }
+
+    console.log(`[Auto-Login Content] Filling ${vendor} credentials`);
 
     setFieldValue(userField, user);
     setFieldValue(passField, password);
@@ -63,10 +169,34 @@
   // ── Capture manual login credentials ──────────────────
   let captureRetries = 0;
   function captureManualLogin() {
-    const userField = document.querySelector("#inputUsername");
-    const passField = document.querySelector("#inputPassword");
-    const submitBtn = document.querySelector("button[type='submit']") ||
-                      document.querySelector("input[type='submit']");
+    // Detect vendor to use correct selectors
+    const vendor = detectVendor();
+    if (!vendor) {
+      console.log("[Auto-Login Content] Capture: Not a login page, skipping credential capture");
+      return;
+    }
+
+    const detector = DETECTORS[vendor];
+
+    // Find fields using vendor-specific selectors
+    let userField = null;
+    let passField = null;
+    let submitBtn = null;
+
+    for (const sel of detector.selectors.username) {
+      userField = document.querySelector(sel);
+      if (userField) break;
+    }
+
+    for (const sel of detector.selectors.password) {
+      passField = document.querySelector(sel);
+      if (passField) break;
+    }
+
+    for (const sel of detector.selectors.submit) {
+      submitBtn = document.querySelector(sel);
+      if (submitBtn) break;
+    }
 
     if (!userField || !passField || !submitBtn) {
       captureRetries++;
@@ -79,7 +209,7 @@
       return;
     }
 
-    console.log("[Auto-Login Content] Setting up credential capture listeners");
+    console.log(`[Auto-Login Content] Setting up ${vendor} credential capture listeners`);
 
     // Intercept form submission to capture credentials
     const captureCredentials = () => {
@@ -92,11 +222,13 @@
           "os-captured-username": username,
           "os-captured-password": password,
           "os-captured-url": window.location.origin,
-          "os-captured-timestamp": Date.now()
+          "os-captured-timestamp": Date.now(),
+          "os-captured-vendor": vendor
         }, () => {
           console.log("[Auto-Login Content] ✅ Captured login credentials:", {
             username,
-            url: window.location.origin
+            url: window.location.origin,
+            vendor
           });
 
           // Re-enable auto-login for this cluster immediately upon manual login attempt
@@ -147,7 +279,14 @@
   }
 
   // ── Handle IDP selection screen then fill ─────────────
-  function handleIdpAndFill(user, password) {
+  function handleIdpAndFill(user, password, vendor = "openshift") {
+    // vSphere typically doesn't have IDP selection - fill directly
+    if (vendor === "vsphere") {
+      fillCredentials(user, password, "vsphere");
+      return;
+    }
+
+    // OpenShift IDP selection logic
     // Look for IDP provider links/buttons (htpasswd, Local, LDAP etc.)
     const allEls = [...document.querySelectorAll("a, button")];
     const idpBtn = allEls.find(el => {
@@ -167,13 +306,13 @@
         const hasForm = document.querySelector("#inputUsername") && document.querySelector("#inputPassword");
         if (hasForm) {
           clearInterval(iv);
-          setTimeout(() => fillCredentials(user, password), 300);
+          setTimeout(() => fillCredentials(user, password, vendor), 300);
         }
         if (attempts > 40) clearInterval(iv); // give up after ~12s
       }, 300);
     } else {
       // Already on the login form directly
-      fillCredentials(user, password);
+      fillCredentials(user, password, vendor);
     }
   }
 
@@ -313,7 +452,7 @@
   }
 
   // ── Show confirmation banner ──────────────────────────
-  function showConfirmBanner(clusterName, user, password) {
+  function showConfirmBanner(clusterName, user, password, vendor = "openshift") {
     if (document.getElementById("os-autologin-banner")) return;
 
     const banner = document.createElement("div");
@@ -328,11 +467,13 @@
       z-index: 999999; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
     `;
 
+    const platformName = vendor === "vsphere" ? "vSphere" : "OpenShift";
+
     banner.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;">
         <img src="${chrome.runtime.getURL('icon48.png')}" width="28" height="28" style="border-radius:50%;" />
         <div>
-          <div style="font-weight:bold;">OpenShift Auto-Login: <span style="color:#EE0000;">${clusterName}</span></div>
+          <div style="font-weight:bold;">${platformName} Auto-Login: <span style="color:#EE0000;">${clusterName}</span></div>
           <div style="font-size:11px;color:#888;">User: ${user}</div>
         </div>
       </div>
@@ -353,13 +494,67 @@
     document.body.prepend(banner);
 
     document.getElementById("os-login-yes").addEventListener("click", () => {
-      handleIdpAndFill(user, password);
+      handleIdpAndFill(user, password, vendor);
       banner.remove();
     });
     document.getElementById("os-login-no").addEventListener("click", () => banner.remove());
 
     // Auto-dismiss after 15 seconds
     setTimeout(() => { if (banner.parentNode) banner.remove(); }, 15000);
+  }
+
+  // ── Match vSphere/vCenter cluster ─────────────────────
+  function matchVSphereCluster(clusters, currentHost, currentUrl) {
+    console.log("[Auto-Login Content] vSphere matching logic");
+
+    const matches = [];
+
+    clusters.forEach(cluster => {
+      try {
+        const clusterUrl = new URL(cluster.url);
+        const clusterHost = clusterUrl.hostname;
+
+        // 1. Exact hostname match (highest priority)
+        if (currentHost === clusterHost) {
+          console.log(`[Auto-Login Content] Exact hostname match for ${cluster.name}`);
+          matches.push({ cluster, specificity: 10000 });
+          return;
+        }
+
+        // 2. URL prefix match (e.g., /ui/ vs /vsphere-client/)
+        if (currentUrl.startsWith(cluster.url)) {
+          console.log(`[Auto-Login Content] URL prefix match for ${cluster.name}`);
+          matches.push({ cluster, specificity: 9000 + cluster.url.length });
+          return;
+        }
+
+        // 3. Partial hostname match (e.g., vcenter.company.com contains vcenter)
+        if (currentHost.includes(clusterHost) || clusterHost.includes(currentHost)) {
+          console.log(`[Auto-Login Content] Partial hostname match for ${cluster.name}`);
+          matches.push({ cluster, specificity: 5000 });
+          return;
+        }
+
+      } catch (err) {
+        console.log(`[Auto-Login Content] Error matching cluster ${cluster.name}:`, err);
+      }
+    });
+
+    // Return highest specificity match
+    if (matches.length === 0) {
+      console.log("[Auto-Login Content] No vSphere matches found");
+      return null;
+    }
+
+    matches.sort((a, b) => b.specificity - a.specificity);
+    const bestMatch = matches[0];
+
+    console.log(`[Auto-Login Content] Best vSphere match: ${bestMatch.cluster.name} (specificity: ${bestMatch.specificity})`);
+    if (matches.length > 1) {
+      console.log("[Auto-Login Content] Other potential matches:", matches.slice(1).map(m => `${m.cluster.name} (${m.specificity})`));
+    }
+
+    return bestMatch.cluster;
   }
 
   // ── Match current page to a saved cluster ─────────────
@@ -370,12 +565,27 @@
   function matchCluster(clusters) {
     const currentHost = window.location.hostname;
     const currentUrl = window.location.href;
+
+    // Detect vendor type (openshift, vsphere)
+    const vendor = detectVendor();
+    console.log("[Auto-Login Content] Detected vendor:", vendor);
+
+    // Filter clusters by vendor type (only match clusters of the same type as current page)
+    const vendorClusters = clusters.filter(c => (c.type || "openshift") === vendor);
+
+    console.log("[Auto-Login Content] Matching against", vendorClusters.length, `${vendor} clusters (filtered from ${clusters.length} total)`);
+    console.log("[Auto-Login Content] Current hostname:", currentHost);
+    console.log("[Auto-Login Content] Current URL:", currentUrl);
+
+    // Route to vendor-specific matching logic
+    if (vendor === "vsphere") {
+      return matchVSphereCluster(vendorClusters, currentHost, currentUrl);
+    }
+
+    // OpenShift matching logic (existing code)
     const currentParts = currentHost.split(".");
     const currentAppsCount = currentParts.filter(p => p === "apps").length;
 
-    console.log("[Auto-Login Content] Matching against", clusters.length, "clusters");
-    console.log("[Auto-Login Content] Current hostname:", currentHost);
-    console.log("[Auto-Login Content] Current URL:", currentUrl);
     console.log("[Auto-Login Content] Number of 'apps' segments in current URL:", currentAppsCount);
 
     // Check sessionStorage for the source cluster URL (set when user clicks Login)
@@ -413,8 +623,8 @@
           console.log("[Auto-Login Content] Redirect hostname:", redirectHost);
 
           // Extract apps domain from redirect hostname
-          // e.g., console-openshift-console.apps.f10-c1.apps.f10l040.fusion.tadn.ibm.com
-          //    -> apps.f10-c1.apps.f10l040.fusion.tadn.ibm.com
+          // e.g., console-openshift-console.apps.f10-c1.apps.f10l040.abc.tadn.xyz.com
+          //    -> apps.f10-c1.apps.f10l040.abc.tadn.xyz.com
           const redirectParts = redirectHost.split(".");
           const redirectAppsIndex = redirectParts.findIndex(p => p === "apps");
           const redirectAppsDomain = redirectAppsIndex >= 0 ? redirectParts.slice(redirectAppsIndex).join(".") : null;
@@ -422,8 +632,8 @@
           console.log("[Auto-Login Content] Redirect apps domain:", redirectAppsDomain);
 
           // Log all clusters and their apps domains for debugging
-          console.log("[Auto-Login Content] All clusters:");
-          clusters.forEach(c => {
+          console.log("[Auto-Login Content] All OpenShift clusters:");
+          vendorClusters.forEach(c => {
             try {
               const clusterHost = new URL(c.url).hostname;
               const clusterParts = clusterHost.split(".");
@@ -436,7 +646,7 @@
           });
 
           // Find cluster that matches this apps domain
-          const matchingCluster = redirectAppsDomain ? clusters.find(c => {
+          const matchingCluster = redirectAppsDomain ? vendorClusters.find(c => {
             try {
               const clusterHost = new URL(c.url).hostname;
               const clusterParts = clusterHost.split(".");
@@ -474,7 +684,7 @@
       }
     }
 
-    clusters.forEach(c => {
+    vendorClusters.forEach(c => {
       try {
         const clusterHost = new URL(c.url).hostname;
 
@@ -614,13 +824,15 @@
     console.log("[Auto-Login Content] Running detection...");
     console.log("[Auto-Login Content] Current URL:", window.location.href);
 
-    const isLoginPage = isOpenShiftLoginPage();
-    console.log("[Auto-Login Content] Is login page:", isLoginPage);
+    const vendor = detectVendor();
+    console.log("[Auto-Login Content] Detected vendor:", vendor);
 
-    if (!isLoginPage) {
+    if (!vendor) {
       console.log("[Auto-Login Content] Not a login page, skipping");
       return;
     }
+
+    console.log(`[Auto-Login Content] Detected ${vendor} login page`);
 
     // Set up credential capture for manual login
     captureManualLogin();
@@ -725,10 +937,10 @@
 
       if (settings.confirm !== false) {
         console.log("[Auto-Login Content] Showing confirmation banner");
-        showConfirmBanner(cluster.name, cluster.user, cluster.password);
+        showConfirmBanner(cluster.name, cluster.user, cluster.password, vendor);
       } else {
         console.log("[Auto-Login Content] Auto-filling without confirmation");
-        handleIdpAndFill(cluster.user, cluster.password);
+        handleIdpAndFill(cluster.user, cluster.password, vendor);
       }
     });
   }
@@ -750,7 +962,7 @@
     run();
 
     // Retry if login form hasn't appeared yet
-    if (attempts < maxAttempts && !isOpenShiftLoginPage()) {
+    if (attempts < maxAttempts && !detectVendor()) {
       console.log("[Auto-Login Content] Login form not found yet, retrying in 1s...");
       setTimeout(tryRun, 1000);
     }
@@ -783,6 +995,37 @@
     const hasConsoleUI = !!document.querySelector('[class*="pf-c-page"], [class*="co-m-"], [class*="oc-"]');
 
     return (isConsoleHostname || isConsoleUrl || (isConsoleTitle && hasConsoleUI));
+  }
+
+  // ── Detect if this is a vSphere console page ──────────
+  function isVSphereConsolePage() {
+    const url = window.location.href;
+    const hostname = window.location.hostname;
+    const title = document.title.toLowerCase();
+
+    // Check for vSphere console patterns (not login page)
+    const isVSphereUrl = (url.includes("/ui/app/") || url.includes("/vsphere-client/")) &&
+                         !url.includes("/login");
+
+    const isVSphereTitle = (title.includes("vsphere") || title.includes("vcenter")) &&
+                           !title.includes("login");
+
+    // Check for vSphere UI elements
+    const hasVSphereUI = !!document.querySelector('[class*="vui-"], [class*="vsphere-"], [id*="vsphere"]');
+
+    return (isVSphereUrl || (isVSphereTitle && hasVSphereUI));
+  }
+
+  // ── Detect if this is ANY console page (not login) ────
+  function isConsolePage() {
+    return isOpenShiftConsolePage() || isVSphereConsolePage();
+  }
+
+  // ── Detect vendor from console page ────────────────────
+  function detectVendorFromConsolePage() {
+    if (isVSphereConsolePage()) return "vsphere";
+    if (isOpenShiftConsolePage()) return "openshift";
+    return null;
   }
 
   // Show banner to save cluster
@@ -852,7 +1095,6 @@
       font-family: Arial, sans-serif;
     `;
 
-    const currentUrl = window.location.origin;
     const suggestedName = window.location.hostname.split('.')[0];
 
     // Get captured credentials and existing groups
@@ -860,7 +1102,8 @@
       "clusters",
       "os-captured-username",
       "os-captured-password",
-      "os-captured-timestamp"
+      "os-captured-timestamp",
+      "os-captured-vendor"
     ], (data) => {
       const clusters = data.clusters || [];
 
@@ -870,12 +1113,23 @@
 
       const capturedUsername = isRecent ? (data["os-captured-username"] || "") : "";
       const capturedPassword = isRecent ? (data["os-captured-password"] || "") : "";
+      const capturedVendor = isRecent ? (data["os-captured-vendor"] || null) : null;
+
+      // Detect vendor from console page if not captured
+      const detectedVendor = capturedVendor || detectVendorFromConsolePage() || "openshift";
+
+      // Set appropriate URL based on vendor
+      let currentUrl = window.location.origin;
+      if (detectedVendor === "vsphere") {
+        currentUrl = window.location.origin + "/ui/";
+      }
 
       console.log("[Auto-Login Content] Pre-filling form:", {
         hasUsername: !!capturedUsername,
         hasPassword: !!capturedPassword,
         age: Math.round(capturedAge / 1000) + "s",
-        username: capturedUsername
+        username: capturedUsername,
+        vendor: detectedVendor
       });
 
       const preFilledNote = (capturedUsername && capturedPassword) ?
@@ -995,7 +1249,7 @@
       // Handle save
       document.getElementById("os-save-confirm").addEventListener("click", () => {
         const name = document.getElementById("os-save-name").value.trim();
-        const url = document.getElementById("os-save-url").value.trim();
+        let url = document.getElementById("os-save-url").value.trim();
         const user = document.getElementById("os-save-user").value.trim();
         const password = document.getElementById("os-save-password").value;
         const role = document.getElementById("os-save-role").value.trim();
@@ -1012,8 +1266,26 @@
           return;
         }
 
+        // Normalize vSphere URLs to ensure they point to /ui/
+        if (detectedVendor === "vsphere") {
+          try {
+            const urlObj = new URL(url);
+            if (urlObj.pathname === "/" || urlObj.pathname === "") {
+              urlObj.pathname = "/ui/";
+              url = urlObj.toString();
+              console.log("[Auto-Login Content] Normalized vSphere URL to:", url);
+            } else if (urlObj.pathname === "/ui") {
+              urlObj.pathname = "/ui/";
+              url = urlObj.toString();
+              console.log("[Auto-Login Content] Normalized vSphere URL to:", url);
+            }
+          } catch (e) {
+            console.error("[Auto-Login Content] Error normalizing URL:", e);
+          }
+        }
+
         chrome.storage.local.get("clusters", ({ clusters = [] }) => {
-          const newCluster = { name, url, user, password };
+          const newCluster = { name, url, user, password, type: detectedVendor };
           if (group) newCluster.group = group;
           if (role) newCluster.role = role;
 
@@ -1024,7 +1296,8 @@
               "os-captured-username",
               "os-captured-password",
               "os-captured-url",
-              "os-captured-timestamp"
+              "os-captured-timestamp",
+              "os-captured-vendor"
             ]);
 
             overlay.remove();
@@ -1096,10 +1369,10 @@
     if (sessionStorage.getItem("os-save-dismissed") === "true") return;
 
     // Don't show on login pages
-    if (isOpenShiftLoginPage()) return;
+    if (detectVendor()) return;
 
-    // Check if we're on a console page
-    if (!isOpenShiftConsolePage()) return;
+    // Check if we're on a console page (OpenShift or vSphere)
+    if (!isConsolePage()) return;
 
     const currentUrl = window.location.origin;
 
@@ -1121,8 +1394,8 @@
 
   // Check after successful login (when credentials were captured and we're back on console)
   function checkAfterLogin() {
-    // Only check on console pages
-    if (!isOpenShiftConsolePage()) return;
+    // Only check on console pages (OpenShift or vSphere)
+    if (!isConsolePage()) return;
 
     chrome.storage.local.get([
       "clusters",
