@@ -1,0 +1,119 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  validate-pr:
+    name: Validate Pull Request
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check PR title format
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          echo "PR Title: $PR_TITLE"
+
+          # Check if title follows conventional commit format
+          if echo "$PR_TITLE" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|ci)(\(.+\))?:'; then
+            echo "✅ PR title follows conventional commit format"
+          else
+            echo "⚠️  PR title should follow format: type(scope): description"
+            echo "   Examples: feat: add dark mode, fix(jenkins): handle timeout, docs: update README"
+          fi
+
+      - name: Check for version bump
+        run: |
+          # Get manifest version from PR branch
+          CURRENT_VERSION=$(jq -r '.version' manifest.json)
+
+          # Get manifest version from base branch
+          git fetch origin ${{ github.base_ref }}
+          BASE_VERSION=$(git show origin/${{ github.base_ref }}:manifest.json | jq -r '.version')
+
+          echo "Base version: $BASE_VERSION"
+          echo "Current version: $CURRENT_VERSION"
+
+          if [ "$CURRENT_VERSION" != "$BASE_VERSION" ]; then
+            echo "✅ Version bumped: $BASE_VERSION → $CURRENT_VERSION"
+            echo "version_changed=true" >> $GITHUB_ENV
+          else
+            echo "ℹ️  Version not changed (okay for docs/tests)"
+            echo "version_changed=false" >> $GITHUB_ENV
+          fi
+
+      # Note: Can't reuse workflows in same run, so we skip full validation here
+      # The main validate.yml already runs on PRs automatically
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          # Use custom PAT if available, otherwise use automatic GITHUB_TOKEN
+          github-token: ${{ secrets.PAT_TOKEN || github.token }}
+          script: |
+            const status = '${{ job.status }}';
+            const versionChanged = '${{ env.version_changed }}';
+
+            let message = '## 🤖 PR Validation Results\n\n';
+
+            if (status === 'success') {
+              message += '✅ All validation checks passed!\n\n';
+            } else {
+              message += '❌ Some validation checks failed. Please review the workflow logs.\n\n';
+            }
+
+            if (versionChanged === 'true') {
+              message += '📦 Version bump detected\n';
+            } else {
+              message += 'ℹ️  No version change detected\n';
+            }
+
+            message += '\n---\n';
+            message += '_Automated validation by GitHub Actions_';
+
+            try {
+              // Find existing bot comment
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+
+              const botComment = comments.find(comment =>
+                comment.user.type === 'Bot' && comment.body.includes('PR Validation Results')
+              );
+
+              if (botComment) {
+                // Update existing comment
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: message
+                });
+                console.log('Updated existing comment');
+              } else {
+                // Create new comment
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: message
+                });
+                console.log('Created new comment');
+              }
+            } catch (error) {
+              console.log('Could not create/update comment:', error.message);
+              // Don't fail the workflow if commenting fails
+              core.warning('Failed to comment on PR: ' + error.message);
+            }

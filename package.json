@@ -1,0 +1,29 @@
+{
+  "name": "openshift-autologin",
+  "version": "3.1.0",
+  "description": "Chrome extension for auto-login to OpenShift and vSphere clusters",
+  "private": true,
+  "scripts": {
+    "lint": "eslint *.js",
+    "lint:fix": "eslint *.js --fix",
+    "validate": "npm run lint && npm run validate:manifest",
+    "validate:manifest": "jq empty manifest.json && echo '✅ manifest.json is valid'",
+    "package": "zip -r extension.zip manifest.json popup.html popup.js content.js background.js icon*.png README.md -x '*.git*' 'node_modules/*' 'dist/*' '.claude/*'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "openshift",
+    "vsphere",
+    "auto-login",
+    "authentication"
+  ],
+  "author": "prsurve",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prsurve/openshift-autologin.git"
+  }
+}
