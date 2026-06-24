@@ -45,6 +45,55 @@ async function corsFetch(url, options = {}) {
   });
 }
 
+// ── Safe Chrome API Wrappers ──────────────────────────
+function safeStorageGet(keys, callback) {
+  try {
+    chrome.storage.local.get(keys, (result) => {
+      if (chrome.runtime.lastError) {
+        console.error("[Storage Get Error]", chrome.runtime.lastError);
+        callback({});
+        return;
+      }
+      callback(result);
+    });
+  } catch (error) {
+    console.error("[Storage Get Exception]", error);
+    callback({});
+  }
+}
+
+function safeStorageSet(items, callback) {
+  try {
+    chrome.storage.local.set(items, () => {
+      if (chrome.runtime.lastError) {
+        console.error("[Storage Set Error]", chrome.runtime.lastError);
+        if (callback) callback(false);
+        return;
+      }
+      if (callback) callback(true);
+    });
+  } catch (error) {
+    console.error("[Storage Set Exception]", error);
+    if (callback) callback(false);
+  }
+}
+
+function safeTabsCreate(options, callback) {
+  try {
+    chrome.tabs.create(options, (tab) => {
+      if (chrome.runtime.lastError || !tab) {
+        console.error("[Tabs Create Error]", chrome.runtime.lastError);
+        if (callback) callback(null);
+        return;
+      }
+      if (callback) callback(tab);
+    });
+  } catch (error) {
+    console.error("[Tabs Create Exception]", error);
+    if (callback) callback(null);
+  }
+}
+
 // ── Get the correct login URL for a cluster ──
 function getLoginUrl(cluster) {
   const type = cluster.type || "openshift";
@@ -240,25 +289,24 @@ function renderClusterCard(cluster, index, clusters) {
   // Build group badge HTML
   let groupBadgeHTML = '';
   if (cluster.group) {
-    const groupColor = getGroupColor(cluster.group);
-    groupBadgeHTML = `<span class="group-badge" style="background:${groupColor.bg};color:${groupColor.text};border-color:${groupColor.border};" title="Group: ${escapeHtml(cluster.group)}">📦 ${escapeHtml(cluster.group)}</span>`;
+    groupBadgeHTML = `<span class="badge group" title="Group: ${escapeHtml(cluster.group)}">📦 ${escapeHtml(cluster.group)}</span>`;
   }
 
   // Build last login HTML
   let lastLoginHTML = '';
   if (cluster.lastLogin) {
     const relTime = formatRelativeTime(cluster.lastLogin);
-    lastLoginHTML = `<span style="font-size:9px;color:#555;margin-left:6px;" title="Last login: ${new Date(cluster.lastLogin).toLocaleString()}">🕐 ${relTime}</span>`;
+    lastLoginHTML = `<span class="badge time" title="Last login: ${new Date(cluster.lastLogin).toLocaleString()}">🕐 ${relTime}</span>`;
   }
 
   // Build tags HTML
   let tagsHTML = '';
   if (cluster.tags && cluster.tags.length > 0) {
     tagsHTML = cluster.tags.slice(0, 3).map(tag =>
-      `<span style="font-size:9px;padding:2px 5px;border-radius:8px;background:#2a2a3a;color:#888;border:1px solid #333;margin-left:4px;" title="Tag: ${escapeHtml(tag)}">#${escapeHtml(tag)}</span>`
+      `<span class="badge" style="background:#f5f5f5;color:#666;" title="Tag: ${escapeHtml(tag)}">#${escapeHtml(tag)}</span>`
     ).join('');
     if (cluster.tags.length > 3) {
-      tagsHTML += `<span style="font-size:9px;color:#666;margin-left:4px;">+${cluster.tags.length - 3}</span>`;
+      tagsHTML += `<span class="badge time">+${cluster.tags.length - 3}</span>`;
     }
   }
 
@@ -266,34 +314,30 @@ function renderClusterCard(cluster, index, clusters) {
   const type = cluster.type || "openshift";
   const platformIcon = type === "vsphere" ? "🔷" : "🔴";
   const platformLabel = type === "vsphere" ? "vSphere" : "OpenShift";
-  const platformBg = type === "vsphere" ? "#1a2a4e" : "#3a1a1a";
-  const platformColor = type === "vsphere" ? "#64b5f6" : "#f44336";
-  const platformBorder = type === "vsphere" ? "#3b82f6" : "#c62828";
-
-  const platformBadgeHTML = `<span class="platform-badge ${type}" style="font-size:9px;padding:2px 7px;border-radius:10px;background:${platformBg};color:${platformColor};border:1px solid ${platformBorder};margin-left:6px;" title="Platform: ${platformLabel}">${platformIcon} ${platformLabel}</span>`;
+  const platformBadgeHTML = `<span class="badge ${type}" title="Platform: ${platformLabel}">${platformIcon} ${platformLabel}</span>`;
 
   // Pin star icon
   const pinIcon = cluster.pinned ? '⭐' : '☆';
   const pinTitle = cluster.pinned ? 'Unpin from top' : 'Pin to top';
 
   div.innerHTML = `
-    <span class="drag-handle" style="cursor:grab;color:#666;margin-right:8px;font-size:12px;" title="Drag to reorder">⋮⋮</span>
-    <input type="checkbox" class="cluster-checkbox" data-index="${index}" />
-    <button class="pin-btn" data-index="${index}" title="${pinTitle}" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0 4px;margin-right:4px;color:${cluster.pinned ? '#f59e0b' : '#444'};">${pinIcon}</button>
-    <div style="min-width:0;flex:1;">
-      <div class="cluster-name">
-        ${escapeHtml(cluster.name)}
+    <div class="cluster-controls">
+      <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+      <input type="checkbox" class="cluster-checkbox" data-index="${index}" />
+      <button class="btn-pin ${cluster.pinned ? 'pinned' : ''}" data-index="${index}" title="${pinTitle}">${pinIcon}</button>
+    </div>
+    <div class="cluster-info">
+      <div class="cluster-header">
+        <div class="cluster-name">${escapeHtml(cluster.name)}</div>
         ${platformBadgeHTML}
-        ${cluster.notes ? `<span style="font-size:10px;color:#666;margin-left:6px;" title="Notes: ${escapeHtml(cluster.notes)}">📝</span>` : ''}
+        ${cluster.notes ? `<span title="Notes: ${escapeHtml(cluster.notes)}">📝</span>` : ''}
       </div>
+      <div class="cluster-url">${escapeHtml(cluster.url)}</div>
       <div class="cluster-meta">
-        <div class="cluster-url">${escapeHtml(cluster.url)}</div>
         <div class="tooltip-wrap">
-          <span class="role-badge ${role.key}">${role.icon} ${role.label}</span>
+          <span class="badge ${role.key}">${role.icon} ${role.label}</span>
           <div class="tooltip-box">
-            <div style="font-weight:bold;margin-bottom:4px;">${role.icon} ${role.label}</div>
-            <div style="color:#aaa;">${role.desc}</div>
-            <div style="margin-top:6px;color:#666;font-size:10px;">${escapeHtml(cluster.url)}</div>
+            ${role.icon} ${role.label}<br><small>${role.desc}</small>
           </div>
         </div>
         ${groupBadgeHTML}
@@ -302,14 +346,11 @@ function renderClusterCard(cluster, index, clusters) {
       </div>
     </div>
     <div class="cluster-actions">
-      <div class="login-btn-wrapper">
-        <button class="login-btn ${role.key !== 'unknown' ? 'has-tooltip' : ''}" data-index="${index}">Login</button>
-        ${getLoginTooltip(role)}
-      </div>
-      <button class="show-password-btn" data-index="${index}" title="Show credentials">👁️</button>
-      <button class="menu-btn" data-index="${index}" title="More actions">⋮</button>
-      <button class="edit-btn" data-index="${index}" title="Edit cluster">✏️</button>
-      <button class="delete-btn" data-index="${index}" title="Remove cluster">✕</button>
+      <button class="btn btn-primary" data-index="${index}">Login</button>
+      <button class="btn-icon" data-index="${index}" data-action="show-password" title="Show credentials">👁️</button>
+      <button class="btn-icon" data-index="${index}" data-action="menu" title="More actions">⋮</button>
+      <button class="btn-icon" data-index="${index}" data-action="edit" title="Edit cluster">✏️</button>
+      <button class="btn-icon" data-index="${index}" data-action="delete" title="Remove cluster">✕</button>
     </div>
   `;
 
@@ -317,7 +358,7 @@ function renderClusterCard(cluster, index, clusters) {
   div.querySelector(".cluster-checkbox").addEventListener("change", updateBulkActionsBar);
 
   // Pin button event
-  div.querySelector(".pin-btn").addEventListener("click", () => {
+  div.querySelector(".btn-pin").addEventListener("click", () => {
     clusters[index].pinned = !clusters[index].pinned;
     chrome.storage.local.set({ clusters }, () => {
       loadClusters();
@@ -325,28 +366,39 @@ function renderClusterCard(cluster, index, clusters) {
     });
   });
 
-  div.querySelector(".login-btn").addEventListener("click", (e) => {
+  // Login button
+  div.querySelector(".btn-primary").addEventListener("click", (e) => {
     const btn = e.currentTarget;
+    if (btn.disabled) return; // Prevent double-click
     btn.disabled = true;
+    const originalText = btn.textContent;
     btn.textContent = "...";
-    loginToCluster(cluster, btn);
+
+    try {
+      loginToCluster(cluster, btn);
+    } catch (error) {
+      console.error("[Login Error]", error);
+      btn.disabled = false;
+      btn.textContent = originalText;
+      showStatus("error", "Failed to start login");
+    }
   });
 
-  div.querySelector(".show-password-btn").addEventListener("click", (e) => {
-    showPasswordModal(cluster);
-  });
-
-  div.querySelector(".menu-btn").addEventListener("click", (e) => {
-    showMoveToGroupMenu(e.currentTarget, cluster, index, clusters, allGroups);
-  });
-
-  div.querySelector(".edit-btn").addEventListener("click", () => {
-    editCluster(index, cluster, clusters);
-  });
-
-  div.querySelector(".delete-btn").addEventListener("click", () => {
-    clusters.splice(index, 1);
-    chrome.storage.local.set({ clusters }, loadClusters);
+  // Icon button actions
+  div.querySelectorAll(".btn-icon").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const action = e.currentTarget.dataset.action;
+      if (action === "show-password") {
+        showPasswordModal(cluster);
+      } else if (action === "menu") {
+        showMoveToGroupMenu(e.currentTarget, cluster, index, clusters, allGroups);
+      } else if (action === "edit") {
+        editCluster(index, cluster, clusters);
+      } else if (action === "delete") {
+        clusters.splice(index, 1);
+        chrome.storage.local.set({ clusters }, loadClusters);
+      }
+    });
   });
 
   // Drag and drop events
@@ -804,26 +856,24 @@ function loadClusters() {
       // Group label = Jenkins job ID
       const groupLabel = group.groupId || "RDR Group";
       const rolesSummary = group.clusters.map(({cluster}) => detectRole(cluster).icon).join(" ");
-      const groupColor = getGroupColor(groupLabel);
 
       // Header — click to expand/collapse, Login All button
       const header = document.createElement("div");
       header.className = "group-header";
-      header.style.background = groupColor.bg;
-      header.style.borderLeft = `4px solid ${groupColor.border}`;
       header.innerHTML = `
         <div class="group-header-left">
-          <span class="drag-handle" style="cursor:grab;color:${groupColor.text};margin-right:6px;font-size:14px;" title="Drag to reorder">⋮⋮</span>
-          <span class="group-chevron" style="color:${groupColor.text};">▶</span>
-          <div>
-            <div class="group-name" style="color:${groupColor.text};">📦 ${escapeHtml(groupLabel)}</div>
-            <div class="group-meta" style="color:${groupColor.text};">${group.clusters.length} clusters &nbsp;${rolesSummary}</div>
+          <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+          <span class="group-chevron">▶</span>
+          <div class="group-info">
+            <div class="group-name">📦 ${escapeHtml(groupLabel)}</div>
+            <div class="group-meta">${group.clusters.length} cluster${group.clusters.length !== 1 ? 's' : ''} · ${rolesSummary}</div>
           </div>
         </div>
         <div class="group-actions">
-          <button class="share-group-btn" style="background:${groupColor.bg};color:${groupColor.text};border:1px solid ${groupColor.border};padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;margin-right:6px;" title="Share this group with others">🔗 Share</button>
-          <button class="login-all-btn" style="background:${groupColor.border};color:${groupColor.text};" title="Login to all clusters in this group">⚡ Login All</button>
-          <span class="group-count" style="background:${groupColor.bg};color:${groupColor.text};border-color:${groupColor.border};">${group.clusters.length}</span>
+          <button class="btn-icon share-group-btn" title="Share this group">🔗</button>
+          <button class="btn-icon delete-group-btn" title="Delete entire group" style="color:#ef4444;">🗑️</button>
+          <span class="group-count">${group.clusters.length}</span>
+          <button class="btn-login-all" title="Login to all clusters">Login All</button>
         </div>
       `;
 
@@ -837,8 +887,9 @@ function loadClusters() {
 
       // Toggle expand/collapse on header click
       header.addEventListener("click", (e) => {
-        if (e.target.closest(".login-all-btn")) return; // don't toggle when clicking Login All
+        if (e.target.closest(".btn-login-all")) return; // don't toggle when clicking Login All
         if (e.target.closest(".share-group-btn")) return; // don't toggle when clicking Share
+        if (e.target.closest(".delete-group-btn")) return; // don't toggle when clicking Delete
         const collapsed = body.classList.toggle("collapsed");
         header.querySelector(".group-chevron").textContent = collapsed ? "▶" : "▼";
       });
@@ -983,8 +1034,35 @@ function loadClusters() {
         });
       });
 
+      // Delete Group — delete all clusters in this group
+      header.querySelector(".delete-group-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+
+        const groupName = group.groupId || "this group";
+        const clusterCount = group.clusters.length;
+
+        if (!confirm(`Delete entire group "${groupName}"?\n\nThis will permanently remove ${clusterCount} cluster${clusterCount !== 1 ? 's' : ''} from this group.`)) {
+          return;
+        }
+
+        chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+          // Get indices of clusters in this group
+          const indicesToDelete = group.clusters.map(({ index }) => index).sort((a, b) => b - a);
+
+          // Delete clusters from highest index to lowest (to avoid index shifting)
+          indicesToDelete.forEach(idx => {
+            clusters.splice(idx, 1);
+          });
+
+          chrome.storage.local.set({ clusters }, () => {
+            loadClusters();
+            showStatus("success", `✅ Deleted group "${groupName}" (${clusterCount} cluster${clusterCount !== 1 ? 's' : ''})`);
+          });
+        });
+      });
+
       // Login All — login to every cluster in the group
-      header.querySelector(".login-all-btn").addEventListener("click", (e) => {
+      header.querySelector(".btn-login-all").addEventListener("click", (e) => {
         e.stopPropagation();
         const btn = e.currentTarget;
 
@@ -1516,18 +1594,34 @@ function escapeHtml(str) {
 
 // ── Add cluster form ──────────────────────────────────
 // Save form state to preserve data when switching tabs or popup closes
+let saveFormTimeout;
 function saveFormState() {
-  const formState = {
-    isOpen: document.getElementById("add-form").style.display === "block",
-    name: document.getElementById("f-name").value,
-    url: document.getElementById("f-url").value,
-    user: document.getElementById("f-user").value,
-    password: document.getElementById("f-password").value,
-    type: document.getElementById("f-type").value,
-    role: document.getElementById("f-role").value,
-    group: document.getElementById("f-group").value,
-  };
-  chrome.storage.local.set({ formState });
+  // Debounce to avoid excessive storage writes
+  clearTimeout(saveFormTimeout);
+  saveFormTimeout = setTimeout(() => {
+    const addForm = document.getElementById("add-form");
+    const nameField = document.getElementById("f-name");
+    const urlField = document.getElementById("f-url");
+    const userField = document.getElementById("f-user");
+    const passwordField = document.getElementById("f-password");
+    const typeField = document.getElementById("f-type");
+    const roleField = document.getElementById("f-role");
+    const groupField = document.getElementById("f-group");
+
+    if (!addForm || !nameField) return; // Safety check
+
+    const formState = {
+      isOpen: addForm.style.display === "block",
+      name: nameField.value,
+      url: urlField.value,
+      user: userField.value,
+      password: passwordField.value,
+      type: typeField.value,
+      role: roleField.value,
+      group: groupField.value,
+    };
+    safeStorageSet({ formState });
+  }, 300); // Debounce 300ms
 }
 
 // Restore form state when popup opens
@@ -1546,7 +1640,7 @@ function restoreFormState() {
 
     // Restore form visibility
     if (formState.isOpen) {
-      document.getElementById("add-form").style.display = "block";
+      document.getElementById("add-form").style.display = "flex";
       document.getElementById("add-btn").style.display = "none";
   if (document.getElementById("quick-import-btn")) {
     document.getElementById("quick-import-btn").style.display = "none";
@@ -1570,7 +1664,7 @@ function setupFormAutosave() {
 }
 
 document.getElementById("add-btn").addEventListener("click", () => {
-  document.getElementById("add-form").style.display = "block";
+  document.getElementById("add-form").style.display = "flex";
   document.getElementById("add-btn").style.display  = "none";
   if (document.getElementById("quick-import-btn")) {
     document.getElementById("quick-import-btn").style.display = "none";
@@ -1626,6 +1720,31 @@ if (typeSelect && roleSelect) {
         <option value="secondary">Secondary C2</option>
       `;
     }
+  });
+}
+
+// Jenkins import button - opens Import tab
+const jenkinsImportBtn = document.getElementById("jenkins-import-btn");
+if (jenkinsImportBtn) {
+  jenkinsImportBtn.addEventListener("click", () => {
+    // Switch to Import tab
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+
+    const importTab = document.querySelector('.tab[data-tab="import"]');
+    const importContent = document.getElementById("tab-import");
+
+    if (importTab) importTab.classList.add("active");
+    if (importContent) importContent.classList.add("active");
+
+    // Focus on Jenkins URL input
+    setTimeout(() => {
+      const jenkinsUrlInput = document.getElementById("jenkins-url");
+      if (jenkinsUrlInput) {
+        jenkinsUrlInput.focus();
+        jenkinsUrlInput.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 100);
   });
 }
 
@@ -1701,7 +1820,8 @@ if (quickImportBtn) {
   });
 }
 
-document.getElementById("cancel-btn").addEventListener("click", () => {
+// Close modal function
+function closeAddModal() {
   document.getElementById("add-form").style.display = "none";
   document.getElementById("add-btn").style.display  = "block";
   if (document.getElementById("quick-import-btn")) {
@@ -1714,6 +1834,36 @@ document.getElementById("cancel-btn").addEventListener("click", () => {
     else el.value = "";
   });
   clearFormState(); // Clear saved state
+}
+
+// Cancel button
+document.getElementById("cancel-btn").addEventListener("click", closeAddModal);
+
+// Modal close button (X)
+const modalCloseBtn = document.getElementById("modal-close-btn");
+if (modalCloseBtn) {
+  modalCloseBtn.addEventListener("click", closeAddModal);
+}
+
+// Click outside modal to close
+const addFormModal = document.getElementById("add-form");
+if (addFormModal) {
+  addFormModal.addEventListener("click", (e) => {
+    // Only close if clicking the overlay itself, not the modal content
+    if (e.target === addFormModal) {
+      closeAddModal();
+    }
+  });
+}
+
+// ESC key to close modal
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const modal = document.getElementById("add-form");
+    if (modal && modal.style.display === "flex") {
+      closeAddModal();
+    }
+  }
 });
 
 // ── Test Connection Button ────────────────────────────
@@ -1788,7 +1938,7 @@ document.getElementById("save-btn").addEventListener("click", () => {
 function applyPopupSize(size) {
   const sizes = {
     compact: '340px',
-    normal: '450px',
+    normal: '500px',
     large: '600px',
     xlarge: '750px'
   };
@@ -2756,8 +2906,11 @@ function filterClusters() {
       clusterCards.forEach(card => {
         const name = card.querySelector(".cluster-name")?.textContent.toLowerCase() || "";
         const url = card.querySelector(".cluster-url")?.textContent.toLowerCase() || "";
-        const platformBadge = card.querySelector(".platform-badge");
-        const clusterType = platformBadge?.classList.contains("vsphere") ? "vsphere" : "openshift";
+
+        // Check for platform badge - look for .badge.vsphere or .badge.openshift
+        const vsphereBadge = card.querySelector(".badge.vsphere");
+        const openshiftBadge = card.querySelector(".badge.openshift");
+        const clusterType = vsphereBadge ? "vsphere" : "openshift";
 
         // Check search query match
         const matchesQuery = name.includes(query) || url.includes(query);
@@ -2776,8 +2929,11 @@ function filterClusters() {
       // For individual cluster items
       const name = item.querySelector(".cluster-name")?.textContent.toLowerCase() || "";
       const url = item.querySelector(".cluster-url")?.textContent.toLowerCase() || "";
-      const platformBadge = item.querySelector(".platform-badge");
-      const clusterType = platformBadge?.classList.contains("vsphere") ? "vsphere" : "openshift";
+
+      // Check for platform badge - look for .badge.vsphere or .badge.openshift
+      const vsphereBadge = item.querySelector(".badge.vsphere");
+      const openshiftBadge = item.querySelector(".badge.openshift");
+      const clusterType = vsphereBadge ? "vsphere" : "openshift";
 
       const matchesQuery = name.includes(query) || url.includes(query);
       const matchesType = !typeFilter || clusterType === typeFilter;

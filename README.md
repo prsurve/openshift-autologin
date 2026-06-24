@@ -4,12 +4,24 @@
 
 **Perfect for:** QE teams, OpenShift administrators, VMware admins, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-2.4.0-red)
+![Version](https://img.shields.io/badge/version-3.0.0-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v2.4.0:**
+**New in v3.0.0:**
+- 🎨 **Complete UI Redesign** - Modern, professional interface with gradients and smooth animations
+- 🪟 **Floating Modal Windows** - Beautiful modal dialogs for adding/editing clusters instead of inline forms
+- 🎯 **Compact Design** - Optimized spacing reduces clutter by 20%, shows more content without scrolling
+- 🌈 **Color-Coded Action Buttons** - Red for Add, Purple for Jenkins, Amber for Import Link - instant visual hierarchy
+- ⚡ **Smart Modal Interactions** - Click outside, ESC key, or × button to close - multiple intuitive options
+- 💾 **Modern Save Cluster Modal** - Clean white theme with gradient header when credentials are auto-captured
+- ✨ **Enhanced Animations** - Smooth slide-in effects and hover states on all interactive elements
+- 🎨 **Premium Visual Design** - Gradient backgrounds, custom scrollbars, glassmorphism effects
+- 📱 **Improved Responsiveness** - Better layout for different popup sizes with proper wrapping
+- 🔧 **Jenkins Quick Access** - New "Jenkins" button in header opens Import tab with one click
+
+**v2.4.0 Features:**
 - 🔷 **vSphere/vCenter Support** - Auto-login now works for VMware vSphere and vCenter instances (versions 8 & 9)
 - 🎯 **Multi-Platform Architecture** - Unified extension supporting both OpenShift and vSphere platforms
 - 🏷️ **Platform Type Selector** - Choose cluster type (OpenShift or vSphere) when adding clusters
@@ -418,9 +430,29 @@ For auto-detection:
 
 ## 🎨 UI Features
 
+### Modern Modal Design **(New in v3.0)**
+- **Floating Windows**: Add/Edit clusters in beautiful modal overlays instead of inline forms
+- **Professional Header**: Gradient red header with close button (×)
+- **Click Outside**: Close modals by clicking overlay, pressing ESC, or clicking ×
+- **Smooth Animations**: Slide-in effects and fade transitions
+- **Focus Management**: Auto-focuses appropriate fields based on context
+- **Save Cluster Modal**: Clean white modal when auto-login credentials are detected
+- **Glassmorphism**: Modern blur effects on modal overlays
+
+### Compact & Clean Design **(New in v3.0)**
+- **20% Space Reduction**: Optimized padding shows more clusters without scrolling
+- **Color-Coded Buttons**: 
+  - **+ Add** (Red gradient) - Primary action
+  - **Jenkins** (Purple gradient) - Import automation  
+  - **Import Link** (Amber gradient) - Quick import
+- **Better Alignment**: All buttons, forms, and elements perfectly aligned
+- **Reduced Clutter**: Tighter spacing without feeling cramped
+- **Custom Scrollbars**: Gradient scrollbars matching theme
+
 ### Search & Filter
 - **Real-time search** across cluster names and URLs
 - Works with both individual clusters and groups
+- **Platform filter**: Filter by OpenShift or vSphere **(v2.4)**
 - Clear search to show all clusters
 
 ### Drag & Drop Reordering
@@ -432,24 +464,25 @@ For auto-detection:
 - **Select multiple**: Check boxes next to clusters
 - **Delete in bulk**: Scroll to bottom → **🗑️ Delete X Selected**
 - See selection count in real-time
+- **Group delete**: One-click button in group header **(v2.4)**
 
 ### Expandable Groups
 - Click **▶** chevron to expand/collapse groups
 - **⚡ Login All** button opens all clusters in group
 - Visual role summary shows all cluster types in group
-- **Color-coded** **(New in v2.2)**: Each group has a consistent color based on its name
+- **Color-coded** **(v2.2)**: Each group has a consistent color based on its name
 
-### Cluster Organization **(New in v2.2)**
+### Cluster Organization **(v2.2)**
 - **Pin/Favorite**: Click ☆ to pin important clusters to the top (⭐ shows pinned)
 - **Last Login**: See when you last accessed each cluster (e.g., "2h ago", "3d ago")
 - **Tags**: Add colored tag badges for quick categorization (#production, #test)
 - **Notes**: Add free-form notes accessible via 📝 icon
 - **Smart Sorting**: Clusters automatically sort by: pinned → recently used → alphabetical
 
-### Adjustable Popup Size **(New in v2.2)**
+### Adjustable Popup Size **(v2.2)**
 - Choose from 4 sizes in Settings → Appearance
 - **Compact** (340px) - Original size
-- **Normal** (450px) - Default, 32% larger
+- **Normal** (500px) - Default, modern size **(updated in v3.0)**
 - **Large** (600px) - Spacious layout
 - **X-Large** (750px) - Maximum width
 
@@ -848,19 +881,73 @@ MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
+## 🎨 What's New in v3.0.0?
+
+### Complete UI Overhaul
+
+v3.0 brings a **completely redesigned interface** with modern aesthetics and improved usability:
+
+#### Floating Modal Windows
+- **Add Cluster Modal**: Beautiful floating window with gradient header
+- **Save Cluster Modal**: Auto-appears when credentials detected after login
+- **Close Options**: Click outside, press ESC, or click × button
+- **Smart Focus**: Auto-focuses appropriate fields based on context
+- **Slide-in Animation**: Smooth entrance with scale and fade effects
+
+#### Modern Visual Design
+- **Gradient Backgrounds**: Red gradients for headers and primary actions
+- **Custom Scrollbars**: Themed gradient scrollbars throughout
+- **Glassmorphism**: Blurred overlays for professional appearance
+- **Hover States**: All buttons and inputs have smooth hover effects
+- **Focus Rings**: Red accent rings appear when focusing inputs
+
+#### Compact & Efficient Layout
+- **20% Space Savings**: Reduced padding and margins show more clusters
+- **Better Alignment**: All elements perfectly aligned horizontally and vertically
+- **Tighter Spacing**: 14-16px padding (was 18-24px)
+- **Smaller Badges**: More compact role and platform badges
+- **Optimized Forms**: Form fields use less vertical space
+
+#### Color-Coded Action Buttons
+The header action buttons now use distinct colors for instant recognition:
+- **+ Add** (Red gradient) - Primary cluster creation action
+- **Jenkins** (Purple gradient) - Import from Jenkins automation
+- **Import Link** (Amber gradient) - Quick share link import
+
+Each button has its own hover state and visual identity.
+
+#### Enhanced Modals
+Both the Add Cluster and Save Cluster modals feature:
+- **Professional Headers**: Gradient background with logo and title
+- **White Bodies**: Clean, modern form layouts
+- **Interactive Elements**: Hover effects on all buttons and inputs
+- **Responsive Design**: Works great at all popup sizes
+- **Accessible**: Multiple close methods, keyboard navigation
+
+### Technical Improvements
+- **Better Error Handling**: Safe Chrome API wrappers prevent crashes
+- **Fixed Platform Filter**: Now correctly filters vSphere vs OpenShift
+- **Improved Performance**: Debounced form auto-save prevents race conditions
+- **Code Quality**: Cleaner CSS, better separation of concerns
+
 ## 📸 Screenshots
 
-### Main Interface
-- **Clusters Tab**: Grouped clusters with role badges, search, and Login All
+### Main Interface (v3.0)
+- **Modern Header**: Gradient background with animated effects
+- **Clusters Tab**: Grouped clusters with role badges, search, platform filter, and Login All
+- **Floating Modals**: Beautiful add/edit dialogs with smooth animations
 - **Import Tab**: Drag-and-drop file import with format examples
 - **Settings Tab**: Configure all login behaviors
 
 ### Key UI Elements
+- **🪟 Modal Windows**: Floating dialogs for add/edit operations **(new)**
+- **🎨 Color Buttons**: Red/Purple/Amber action buttons **(new)**
 - **⋮⋮ Drag Handle**: Click and drag to reorder clusters or groups
 - **☑️ Checkboxes**: Select multiple clusters for bulk delete
 - **🔍 Search Box**: Real-time filtering by name or URL
 - **⚡ Login All**: One-click batch login for grouped clusters
 - **🏷️ Role Badges**: Color-coded cluster roles with tooltips
+- **🔷 Platform Badges**: vSphere (blue) vs OpenShift (red) **(v2.4)**
 
 ## 🙏 Acknowledgements
 
