@@ -1,0 +1,125 @@
+name: Release on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release-on-merge:
+    # Only run if PR was merged (not just closed)
+    if: github.event.pull_request.merged == true
+    name: Create Release from PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main  # Checkout main after merge
+
+      - name: Check if release PR
+        id: check_release
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+
+          # Check if PR title starts with "Release" or has "release" label
+          if echo "$PR_TITLE" | grep -qiE '^release'; then
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "✅ This is a release PR"
+          elif echo "$PR_LABELS" | grep -qi "release"; then
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "✅ PR has 'release' label"
+          else
+            echo "is_release=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  Not a release PR - skipping"
+          fi
+
+      - name: Get version from manifest
+        if: steps.check_release.outputs.is_release == 'true'
+        id: get_version
+        run: |
+          VERSION=$(jq -r '.version' manifest.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Check if tag exists
+        if: steps.check_release.outputs.is_release == 'true'
+        id: check_tag
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Tag v$VERSION already exists - skipping release"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Tag v$VERSION does not exist - will create release"
+          fi
+
+      - name: Create release package
+        if: steps.check_release.outputs.is_release == 'true' && steps.check_tag.outputs.exists == 'false'
+        run: |
+          mkdir -p release
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          zip -r release/openshift-autologin-v${VERSION}.zip \
+            manifest.json \
+            popup.html \
+            popup.js \
+            content.js \
+            background.js \
+            icon*.png \
+            README.md \
+            -x "*.git*" "node_modules/*" "dist/*" ".claude/*"
+
+          echo "📦 Package created: $(ls -lh release/*.zip | awk '{print $9, $5}')"
+
+      - name: Extract PR description for changelog
+        if: steps.check_release.outputs.is_release == 'true' && steps.check_tag.outputs.exists == 'false'
+        run: |
+          cat > CHANGELOG.md << 'EOF'
+          ${{ github.event.pull_request.body }}
+          EOF
+
+          # If PR body is empty, use commits
+          if [ ! -s CHANGELOG.md ]; then
+            echo "## Changes" > CHANGELOG.md
+            git log -10 --pretty=format:"- %s (%h)" >> CHANGELOG.md
+          fi
+
+          cat CHANGELOG.md
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.is_release == 'true' && steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          body_path: CHANGELOG.md
+          files: release/*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: steps.check_release.outputs.is_release == 'true'
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TAG_EXISTS="${{ steps.check_tag.outputs.exists }}"
+
+          echo "## Release Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$TAG_EXISTS" = "true" ]; then
+            echo "⚠️  Release v${VERSION} already exists - skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🚀 Release v${VERSION} created successfully!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**PR:** #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Tag:** v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          fi

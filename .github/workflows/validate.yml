@@ -1,0 +1,302 @@
+name: Extension Validation
+
+on:
+  push:
+    branches: [ main, ci ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    name: Validate Chrome Extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 1. Manifest Validation
+      - name: Validate manifest.json
+        run: |
+          echo "🔍 Validating manifest.json..."
+
+          # Check if manifest.json exists
+          if [ ! -f "manifest.json" ]; then
+            echo "❌ manifest.json not found"
+            exit 1
+          fi
+
+          # Validate JSON syntax
+          if ! jq empty manifest.json 2>/dev/null; then
+            echo "❌ manifest.json is not valid JSON"
+            exit 1
+          fi
+
+          # Check required fields
+          REQUIRED_FIELDS=("manifest_version" "name" "version" "description")
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            if ! jq -e ".$field" manifest.json > /dev/null; then
+              echo "❌ Missing required field: $field"
+              exit 1
+            fi
+          done
+
+          # Check manifest version is 3
+          MANIFEST_VERSION=$(jq -r '.manifest_version' manifest.json)
+          if [ "$MANIFEST_VERSION" != "3" ]; then
+            echo "❌ manifest_version must be 3, got: $MANIFEST_VERSION"
+            exit 1
+          fi
+
+          # Validate version format (semantic versioning)
+          VERSION=$(jq -r '.version' manifest.json)
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Version must follow semantic versioning (e.g., 3.1.0), got: $VERSION"
+            exit 1
+          fi
+
+          # Check icon files exist
+          ICONS=$(jq -r '.icons | to_entries[] | .value' manifest.json)
+          for icon in $ICONS; do
+            if [ ! -f "$icon" ]; then
+              echo "❌ Icon file not found: $icon"
+              exit 1
+            fi
+          done
+
+          echo "✅ manifest.json is valid"
+
+      - name: Validate icon dimensions
+        run: |
+          echo "🖼️  Validating icon dimensions..."
+
+          # Install ImageMagick for image validation
+          sudo apt-get update -qq
+          sudo apt-get install -y imagemagick
+
+          # Expected dimensions
+          declare -A EXPECTED_SIZES=(
+            ["icon16.png"]="16x16"
+            ["icon32.png"]="32x32"
+            ["icon48.png"]="48x48"
+            ["icon128.png"]="128x128"
+          )
+
+          for icon in "${!EXPECTED_SIZES[@]}"; do
+            if [ -f "$icon" ]; then
+              ACTUAL_SIZE=$(identify -format "%wx%h" "$icon")
+              EXPECTED="${EXPECTED_SIZES[$icon]}"
+              if [ "$ACTUAL_SIZE" != "$EXPECTED" ]; then
+                echo "❌ $icon has wrong dimensions: $ACTUAL_SIZE (expected $EXPECTED)"
+                exit 1
+              fi
+              echo "✅ $icon: $ACTUAL_SIZE"
+            fi
+          done
+
+      # 2. JavaScript Linting
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install ESLint
+        run: |
+          npm init -y
+          npm install --save-dev eslint
+
+      - name: Run ESLint
+        run: |
+          echo "🔍 Running ESLint..."
+
+          # Create basic ESLint config if it doesn't exist
+          if [ ! -f ".eslintrc.json" ]; then
+            cat > .eslintrc.json << 'EOF'
+          {
+            "env": {
+              "browser": true,
+              "es2021": true,
+              "webextensions": true
+            },
+            "extends": "eslint:recommended",
+            "parserOptions": {
+              "ecmaVersion": 2021,
+              "sourceType": "script"
+            },
+            "rules": {
+              "no-unused-vars": "warn",
+              "no-undef": "error",
+              "no-console": "off",
+              "semi": ["error", "always"],
+              "quotes": ["warn", "single", { "avoidEscape": true }]
+            },
+            "globals": {
+              "chrome": "readonly"
+            }
+          }
+          EOF
+          fi
+
+          # Run ESLint on JS files
+          npx eslint *.js --max-warnings 50 || {
+            echo "⚠️  ESLint found issues (continuing with warnings)"
+          }
+
+          echo "✅ JavaScript linting complete"
+
+      # 3. Build Validation
+      - name: Validate extension structure
+        run: |
+          echo "📦 Validating extension structure..."
+
+          # Check required files exist
+          REQUIRED_FILES=(
+            "manifest.json"
+            "popup.html"
+            "popup.js"
+            "content.js"
+            "background.js"
+          )
+
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Required file missing: $file"
+              exit 1
+            fi
+            echo "✅ Found: $file"
+          done
+
+          # Check file sizes (Chrome Web Store limits)
+          MAX_SIZE_MB=5
+          MAX_SIZE_BYTES=$((MAX_SIZE_MB * 1024 * 1024))
+
+          for file in *.js *.html; do
+            if [ -f "$file" ]; then
+              SIZE=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file")
+              if [ "$SIZE" -gt "$MAX_SIZE_BYTES" ]; then
+                echo "❌ $file is too large: $(($SIZE / 1024 / 1024))MB (max ${MAX_SIZE_MB}MB)"
+                exit 1
+              fi
+            fi
+          done
+
+          echo "✅ Extension structure is valid"
+
+      - name: Create distribution package
+        run: |
+          echo "📦 Creating distribution package..."
+
+          # Create dist directory
+          mkdir -p dist
+
+          # Files to include in distribution
+          zip -r dist/extension.zip \
+            manifest.json \
+            popup.html \
+            popup.js \
+            content.js \
+            background.js \
+            icon*.png \
+            README.md \
+            -x "*.git*" "node_modules/*" "dist/*"
+
+          # Show package info
+          unzip -l dist/extension.zip
+          ZIP_SIZE=$(stat -c%s dist/extension.zip 2>/dev/null || stat -f%z dist/extension.zip)
+          echo "✅ Package created: $(($ZIP_SIZE / 1024))KB"
+
+          # Chrome Web Store size limit is 100MB
+          if [ "$ZIP_SIZE" -gt $((100 * 1024 * 1024)) ]; then
+            echo "❌ Package too large for Chrome Web Store: $(($ZIP_SIZE / 1024 / 1024))MB"
+            exit 1
+          fi
+
+      # 4. Security Scanning
+      - name: Security scan - Check for hardcoded secrets
+        run: |
+          echo "🔒 Scanning for hardcoded secrets..."
+
+          # Patterns to check for
+          PATTERNS=(
+            "password.*=.*['\"][^'\"]{8,}"
+            "api[_-]?key.*=.*['\"][^'\"]{16,}"
+            "secret.*=.*['\"][^'\"]{16,}"
+            "token.*=.*['\"][^'\"]{16,}"
+            "bearer.*['\"][^'\"]{16,}"
+          )
+
+          FOUND_ISSUES=0
+
+          for pattern in "${PATTERNS[@]}"; do
+            if grep -rniE "$pattern" *.js *.html 2>/dev/null | grep -v "password.*\*\*\*" | grep -v "example" | grep -v "placeholder"; then
+              echo "⚠️  Potential hardcoded secret found matching: $pattern"
+              FOUND_ISSUES=$((FOUND_ISSUES + 1))
+            fi
+          done
+
+          if [ $FOUND_ISSUES -gt 0 ]; then
+            echo "⚠️  Found $FOUND_ISSUES potential security issues (review manually)"
+          else
+            echo "✅ No hardcoded secrets detected"
+          fi
+
+      - name: Security scan - Check permissions
+        run: |
+          echo "🔒 Validating permissions..."
+
+          # Extract permissions from manifest
+          PERMISSIONS=$(jq -r '.permissions[]' manifest.json)
+
+          # Warn about powerful permissions
+          SENSITIVE_PERMS=("cookies" "browsingData" "history" "management" "webRequest")
+
+          for perm in "${SENSITIVE_PERMS[@]}"; do
+            if echo "$PERMISSIONS" | grep -q "^$perm$"; then
+              echo "⚠️  Extension uses sensitive permission: $perm"
+            fi
+          done
+
+          echo "📋 Current permissions:"
+          echo "$PERMISSIONS"
+          echo "✅ Permission scan complete"
+
+      - name: Security scan - XSS vulnerabilities
+        run: |
+          echo "🔒 Scanning for potential XSS vulnerabilities..."
+
+          # Check for dangerous patterns
+          if grep -rn "innerHTML\s*=" *.js 2>/dev/null; then
+            echo "⚠️  Found innerHTML usage - ensure content is sanitized"
+          fi
+
+          if grep -rn "document.write" *.js 2>/dev/null; then
+            echo "⚠️  Found document.write usage - potential XSS risk"
+          fi
+
+          if grep -rn "eval(" *.js 2>/dev/null; then
+            echo "❌ Found eval() usage - security risk"
+            exit 1
+          fi
+
+          echo "✅ XSS scan complete"
+
+      # 5. Upload artifacts
+      - name: Upload extension package
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-package
+          path: dist/extension.zip
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## ✅ Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Manifest validation passed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Icon dimensions validated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ JavaScript linting complete" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Extension structure validated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Distribution package created" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Security scans complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **Extension package ready for distribution**" >> $GITHUB_STEP_SUMMARY

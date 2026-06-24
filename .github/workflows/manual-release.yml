@@ -1,0 +1,113 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 3.2.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  manual-release:
+    name: Create Manual Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$'; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "   Expected: 3.2.0 or 3.2.0-beta.1"
+            exit 1
+          fi
+          echo "✅ Valid version: $VERSION"
+
+      - name: Check manifest version
+        run: |
+          MANIFEST_VERSION=$(jq -r '.version' manifest.json)
+          INPUT_VERSION="${{ github.event.inputs.version }}"
+
+          echo "Manifest version: $MANIFEST_VERSION"
+          echo "Input version: $INPUT_VERSION"
+
+          # Strip pre-release suffix for comparison
+          INPUT_BASE=$(echo "$INPUT_VERSION" | sed 's/-.*$//')
+
+          if [ "$MANIFEST_VERSION" != "$INPUT_BASE" ]; then
+            echo "⚠️  Warning: manifest.json version ($MANIFEST_VERSION) != input version ($INPUT_BASE)"
+            echo "   Continuing anyway for manual releases..."
+          fi
+
+      - name: Create release package
+        run: |
+          mkdir -p release
+          VERSION="${{ github.event.inputs.version }}"
+
+          zip -r release/openshift-autologin-v${VERSION}.zip \
+            manifest.json \
+            popup.html \
+            popup.js \
+            content.js \
+            background.js \
+            icon*.png \
+            README.md \
+            -x "*.git*" "node_modules/*" "dist/*" ".claude/*"
+
+          echo "📦 Created: openshift-autologin-v${VERSION}.zip"
+          ls -lh release/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          BRANCH="${{ github.ref_name }}"
+
+          echo "## Release v${VERSION}" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "**Branch:** \`${BRANCH}\`" >> CHANGELOG.md
+          echo "**Created:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          # Get recent commits
+          echo "### Recent Changes" >> CHANGELOG.md
+          git log -10 --pretty=format:"- %s (%h)" >> CHANGELOG.md
+
+          cat CHANGELOG.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: Release v${{ github.event.inputs.version }}
+          body_path: CHANGELOG.md
+          files: release/*.zip
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          IS_PRERELEASE="${{ github.event.inputs.prerelease }}"
+
+          echo "## 🚀 Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "**Type:** $([ "$IS_PRERELEASE" = "true" ] && echo "Pre-release" || echo "Stable")" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Package: openshift-autologin-v${VERSION}.zip" >> $GITHUB_STEP_SUMMARY
