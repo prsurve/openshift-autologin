@@ -8,7 +8,8 @@
     "lint:fix": "eslint *.js --fix",
     "validate": "npm run lint && npm run validate:manifest",
     "validate:manifest": "jq empty manifest.json && echo '✅ manifest.json is valid'",
-    "package": "zip -r extension.zip manifest.json popup.html popup.js content.js background.js icon*.png README.md -x '*.git*' 'node_modules/*' 'dist/*' '.claude/*'"
+    "package": "zip -r extension.zip manifest.json popup.html popup.js content.js background.js icon*.png README.md -x '*.git*' 'node_modules/*' 'dist/*' '.claude/*'",
+    "hooks:install": "./.github/hooks/install.sh"
   },
   "keywords": [
     "chrome-extension",
