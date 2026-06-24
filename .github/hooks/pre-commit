@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# Pre-commit hook for OpenShift Auto-Login extension
+# Runs validation checks before allowing commit
+
+set -e
+
+echo "🔍 Running pre-commit validation..."
+echo ""
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+FAILED=0
+
+# 1. Validate manifest.json
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Validating manifest.json..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if ! jq empty manifest.json 2>/dev/null; then
+  echo -e "${RED}❌ manifest.json has invalid JSON syntax${NC}"
+  FAILED=1
+else
+  echo -e "${GREEN}✅ Valid JSON syntax${NC}"
+fi
+
+# Check version format
+VERSION=$(jq -r '.version' manifest.json)
+if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+  echo -e "${RED}❌ Invalid version format: $VERSION${NC}"
+  FAILED=1
+else
+  echo -e "${GREEN}✅ Valid version: $VERSION${NC}"
+fi
+
+echo ""
+
+# 2. Check for hardcoded secrets (basic check)
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Checking for hardcoded secrets..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Get list of staged files
+STAGED_JS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' || true)
+
+if [ -n "$STAGED_JS_FILES" ]; then
+  # Check for eval() (security risk)
+  if echo "$STAGED_JS_FILES" | xargs grep -n "eval(" 2>/dev/null; then
+    echo -e "${RED}❌ Found eval() usage - security risk!${NC}"
+    FAILED=1
+  fi
+
+  # Check for potential hardcoded secrets in staged files
+  if echo "$STAGED_JS_FILES" | xargs grep -niE "password\s*=\s*['\"][^'\"]{8,}" 2>/dev/null | grep -v "password.*\*\*\*" | grep -v "example"; then
+    echo -e "${YELLOW}⚠️  Potential hardcoded password found${NC}"
+  fi
+
+  if [ $FAILED -eq 0 ]; then
+    echo -e "${GREEN}✅ No dangerous patterns found${NC}"
+  fi
+else
+  echo -e "${YELLOW}ℹ️  No JavaScript files staged${NC}"
+fi
+
+echo ""
+
+# 3. Run ESLint on staged files (if node_modules exists)
+if [ -d "node_modules" ] && [ -n "$STAGED_JS_FILES" ]; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "Running ESLint on staged files..."
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  if echo "$STAGED_JS_FILES" | xargs npx eslint --max-warnings 10; then
+    echo -e "${GREEN}✅ ESLint passed${NC}"
+  else
+    echo -e "${RED}❌ ESLint found issues${NC}"
+    echo -e "${YELLOW}Fix with: npm run lint:fix${NC}"
+    FAILED=1
+  fi
+  echo ""
+fi
+
+# 4. Check commit message format (if available)
+if [ -f ".git/COMMIT_EDITMSG" ]; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "Checking commit message format..."
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  COMMIT_MSG=$(head -n1 .git/COMMIT_EDITMSG 2>/dev/null || echo "")
+
+  if echo "$COMMIT_MSG" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|ci)(\(.+\))?:'; then
+    echo -e "${GREEN}✅ Commit message follows conventional format${NC}"
+  else
+    echo -e "${YELLOW}⚠️  Consider using conventional commit format${NC}"
+    echo -e "${YELLOW}   Example: feat: add new feature${NC}"
+    echo -e "${YELLOW}   Types: feat, fix, docs, style, refactor, test, chore, ci${NC}"
+  fi
+  echo ""
+fi
+
+# Final result
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ $FAILED -eq 0 ]; then
+  echo -e "${GREEN}✅ All pre-commit checks passed!${NC}"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  exit 0
+else
+  echo -e "${RED}❌ Pre-commit validation failed!${NC}"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "Fix the issues above or use 'git commit --no-verify' to skip checks."
+  exit 1
+fi

@@ -34,6 +34,12 @@ Compare 3 different release workflow options:
 - Manual - Release from any branch/PR
 - PR merge - Fully automated on merge
 
+### [Pre-Commit Hooks](PRE_COMMIT_SETUP.md) 🔒
+Automatically validate code before every commit:
+- Simple Git hook (lightweight, no dependencies)
+- Husky + lint-staged (team-friendly, auto-install)
+- Choose the option that fits your workflow
+
 ---
 
 ## 🚀 Quick Links

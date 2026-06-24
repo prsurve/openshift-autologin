@@ -8,7 +8,9 @@
     "lint:fix": "eslint *.js --fix",
     "validate": "npm run lint && npm run validate:manifest",
     "validate:manifest": "jq empty manifest.json && echo '✅ manifest.json is valid'",
-    "package": "zip -r extension.zip manifest.json popup.html popup.js content.js background.js icon*.png README.md -x '*.git*' 'node_modules/*' 'dist/*' '.claude/*'"
+    "package": "zip -r extension.zip manifest.json popup.html popup.js content.js background.js icon*.png README.md -x '*.git*' 'node_modules/*' 'dist/*' '.claude/*'",
+    "prepare": "husky install .github/hooks",
+    "hooks:install": "./.github/hooks/install.sh"
   },
   "keywords": [
     "chrome-extension",
@@ -20,7 +22,18 @@
   "author": "prsurve",
   "license": "MIT",
   "devDependencies": {
-    "eslint": "^8.57.0"
+    "eslint": "^8.57.0",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.0"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --max-warnings 10",
+      "git add"
+    ],
+    "manifest.json": [
+      "jq empty"
+    ]
   },
   "repository": {
     "type": "git",
