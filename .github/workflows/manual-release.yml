@@ -97,7 +97,7 @@ jobs:
           draft: false
           prerelease: ${{ github.event.inputs.prerelease }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || github.token }}
 
       - name: Summary
         run: |
