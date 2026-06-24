@@ -821,14 +821,22 @@
 
     /* ── Status ── */
     .status {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       font-size: 13px;
-      padding: 12px 16px;
-      border-radius: 10px;
-      margin-bottom: 14px;
+      padding: 12px 20px;
+      border-radius: 12px;
       display: none;
       font-weight: 600;
       border: 2px solid;
-      animation: slideIn 0.3s ease;
+      z-index: 99999;
+      min-width: 280px;
+      max-width: 90%;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      animation: toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .status.success {
       background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
@@ -847,6 +855,28 @@
       color: #1e40af;
       border-color: #93c5fd;
       display: block;
+    }
+
+    @keyframes toastSlideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px) scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
+    }
+
+    @keyframes toastFadeOut {
+      from {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px) scale(0.9);
+      }
     }
 
     @keyframes slideIn {
@@ -1115,36 +1145,91 @@
     /* ── Import tab styles ── */
     .import-drop-zone {
       border: 3px dashed #cbd5e1;
-      border-radius: 14px;
-      padding: 36px 24px;
+      border-radius: 12px;
+      padding: 24px 20px;
       text-align: center;
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       background: white;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
     .import-drop-zone:hover,
     .import-drop-zone.dragover {
       border-color: #DC2626;
       background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-      transform: scale(1.02);
+      transform: scale(1.01);
     }
     .drop-icon {
-      font-size: 40px;
-      margin-bottom: 12px;
+      font-size: 32px;
+      margin-bottom: 8px;
       filter: grayscale(0.3);
     }
     .drop-title {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
       color: #0f172a;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       letter-spacing: -0.2px;
     }
     .drop-sub {
-      font-size: 12px;
+      font-size: 11px;
       color: #64748b;
       font-weight: 500;
+    }
+
+    /* ── Preview List Styles ── */
+    .preview-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: #f8fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+    .preview-item:hover {
+      background: white;
+      border-color: #cbd5e1;
+      transform: translateX(2px);
+    }
+
+    .preview-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      flex-shrink: 0;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    }
+    .preview-dot.warn {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+    }
+
+    .confirm-import-btn {
+      width: 100%;
+      background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      margin-top: 12px;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .confirm-import-btn:hover {
+      background: linear-gradient(135deg, #B91C1C 0%, #991B1B 100%);
+      box-shadow: 0 4px 16px rgba(220, 38, 38, 0.35);
+      transform: translateY(-1px);
+    }
+    .confirm-import-btn:active {
+      transform: translateY(0);
     }
 
     .format-tabs {
@@ -1197,6 +1282,15 @@
     .import-actions {
       display: flex;
       gap: 10px;
+      position: sticky;
+      bottom: 0;
+      background: linear-gradient(to top, #f5f7fa 0%, rgba(245, 247, 250, 0.95) 80%, transparent 100%);
+      padding: 16px 0 0;
+      margin: 16px -20px -20px;
+      padding-left: 20px;
+      padding-right: 20px;
+      padding-bottom: 20px;
+      z-index: 10;
     }
 
     .import-btn,
@@ -1325,7 +1419,7 @@
       <div class="header-text">
         <h1>
           OpenShift & vSphere Auto-Login
-          <span class="version-badge">v3.0</span>
+          <span class="version-badge">v3.1</span>
         </h1>
         <div class="header-subtitle">Enterprise Cluster Manager</div>
       </div>
@@ -1444,20 +1538,9 @@
   <div class="tab-content" id="tab-import">
     <div class="section-title">Jenkins Import</div>
 
-    <div class="form">
+    <div class="form" style="margin-bottom:12px;">
       <label>Job URL</label>
       <input type="text" id="jenkins-url" placeholder="https://jenkins.example.com/job/my-job/123/" />
-
-      <div class="form-row">
-        <div style="flex:1;">
-          <label>Username (optional)</label>
-          <input type="text" id="jenkins-user" placeholder="Username" autocomplete="off" />
-        </div>
-        <div style="flex:1;">
-          <label>API Token (optional)</label>
-          <input type="password" id="jenkins-token" placeholder="Token" autocomplete="off" />
-        </div>
-      </div>
 
       <label>Group Name (optional)</label>
       <input type="text" id="jenkins-group" placeholder="Auto-detected from job ID" />
@@ -1466,19 +1549,35 @@
         Fetch Clusters
       </button>
 
-      <div style="margin-top:14px;">
-        <label style="display:flex;align-items:center;gap:10px;font-size:13px;color:#64748b;cursor:pointer;font-weight:600;">
-          <input type="checkbox" id="jenkins-debug" style="cursor:pointer;width:18px;height:18px;"/>
-          <span>Show debug info</span>
-        </label>
-      </div>
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer;color:#64748b;font-size:12px;font-weight:600;padding:8px 0;">
+          Advanced Options
+        </summary>
+        <div style="margin-top:8px;">
+          <div class="form-row" style="margin-bottom:0;">
+            <div style="flex:1;">
+              <label>Username</label>
+              <input type="text" id="jenkins-user" placeholder="Username" autocomplete="off" />
+            </div>
+            <div style="flex:1;">
+              <label>API Token</label>
+              <input type="password" id="jenkins-token" placeholder="Token" autocomplete="off" />
+            </div>
+          </div>
 
-      <div id="jenkins-debug-output" style="display:none;background:#1e293b;border-radius:12px;padding:14px;margin-top:12px;max-height:300px;overflow-y:auto;border:2px solid #334155;">
+          <label style="display:flex;align-items:center;gap:10px;font-size:13px;color:#64748b;cursor:pointer;font-weight:600;margin-top:8px;margin-bottom:0;">
+            <input type="checkbox" id="jenkins-debug" style="cursor:pointer;width:18px;height:18px;"/>
+            <span>Show debug info</span>
+          </label>
+        </div>
+      </details>
+
+      <div id="jenkins-debug-output" style="display:none;background:#1e293b;border-radius:12px;padding:14px;margin-top:12px;max-height:250px;overflow-y:auto;border:2px solid #334155;">
         <div style="font-size:11px;color:#a7f3d0;font-family:monospace;white-space:pre-wrap;line-height:1.5;"></div>
       </div>
     </div>
 
-    <div class="section-title" style="margin-top:20px;">File Import</div>
+    <div class="section-title" style="margin-top:16px;">File Import</div>
 
     <!-- Drag & Drop Zone -->
     <div class="import-drop-zone" id="drop-zone">
@@ -1487,34 +1586,6 @@
       <div class="drop-sub">Supports JSON · YAML · .env</div>
       <input type="file" id="file-input" accept=".json,.yaml,.yml,.env,.txt" style="display:none"/>
     </div>
-
-    <!-- Format Examples -->
-    <div class="section-title">Format Examples</div>
-    <div class="format-tabs">
-      <div class="format-tab active" data-fmt="json">JSON</div>
-      <div class="format-tab" data-fmt="yaml">YAML</div>
-      <div class="format-tab" data-fmt="env">.env</div>
-    </div>
-
-    <div class="format-example active" id="fmt-json">[
-  {
-    "name": "Dev",
-    "url": "https://console.apps.dev.example.com",
-    "user": "admin",
-    "password": "secret"
-  }
-]</div>
-
-    <div class="format-example" id="fmt-yaml">clusters:
-  - name: Dev
-    url: https://console.apps.dev.example.com
-    user: admin
-    password: secret</div>
-
-    <div class="format-example" id="fmt-env">DEV_NAME=Dev
-DEV_URL=https://console.apps.dev.example.com
-DEV_USER=admin
-DEV_PASSWORD=secret</div>
 
     <div class="preview-list" id="preview-list" style="background:white;border:2px solid #e2e8f0;border-radius:12px;padding:16px;margin-top:12px;display:none;max-height:300px;overflow-y:auto;"></div>
 

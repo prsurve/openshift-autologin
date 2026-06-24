@@ -299,6 +299,13 @@ function renderClusterCard(cluster, index, clusters) {
     lastLoginHTML = `<span class="badge time" title="Last login: ${new Date(cluster.lastLogin).toLocaleString()}">🕐 ${relTime}</span>`;
   }
 
+  // Build created at HTML
+  let createdAtHTML = '';
+  if (cluster.createdAt) {
+    const relTime = formatRelativeTime(cluster.createdAt);
+    createdAtHTML = `<span class="badge time" title="Added: ${new Date(cluster.createdAt).toLocaleString()}">➕ ${relTime}</span>`;
+  }
+
   // Build tags HTML
   let tagsHTML = '';
   if (cluster.tags && cluster.tags.length > 0) {
@@ -342,6 +349,7 @@ function renderClusterCard(cluster, index, clusters) {
         </div>
         ${groupBadgeHTML}
         ${lastLoginHTML}
+        ${createdAtHTML}
         ${tagsHTML}
       </div>
     </div>
@@ -856,6 +864,7 @@ function loadClusters() {
       // Group label = Jenkins job ID
       const groupLabel = group.groupId || "RDR Group";
       const rolesSummary = group.clusters.map(({cluster}) => detectRole(cluster).icon).join(" ");
+      const groupColor = getGroupColor(groupLabel);
 
       // Header — click to expand/collapse, Login All button
       const header = document.createElement("div");
@@ -939,53 +948,141 @@ function loadClusters() {
         const modal = document.createElement("div");
         modal.style.cssText = `
           position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.85); z-index: 9999;
+          background: rgba(15, 23, 42, 0.85);
+          backdrop-filter: blur(8px);
+          z-index: 9999;
           display: flex; align-items: center; justify-content: center;
           padding: 20px;
+          animation: fadeIn 0.2s ease;
         `;
 
         modal.innerHTML = `
           <div style="
-            background: #1a1a2e; border-radius: 12px; padding: 24px;
-            max-width: 400px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-            border: 2px solid ${groupColor.border};
+            background: white;
+            border-radius: 16px;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
           ">
-            <div style="font-size:18px;font-weight:bold;color:#eee;margin-bottom:12px;">
-              🔗 Share Group: ${escapeHtml(groupLabel)}
+            <!-- Modal Header -->
+            <div style="
+              background: linear-gradient(135deg, ${groupColor.border} 0%, ${groupColor.bg} 100%);
+              padding: 20px 24px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+            ">
+              <div>
+                <div style="font-size:18px;font-weight:700;color:white;letter-spacing:-0.3px;text-shadow:0 2px 4px rgba(0,0,0,0.2);">
+                  Share Group
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.9);font-weight:600;margin-top:2px;">
+                  ${escapeHtml(groupLabel)}
+                </div>
+              </div>
+              <button id="close-share-modal" style="
+                background: rgba(255,255,255,0.2);
+                border: none;
+                color: white;
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+                line-height: 1;
+              ">×</button>
             </div>
 
-            <div style="background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:12px;margin-bottom:16px;">
-              <div style="font-size:11px;color:#888;margin-bottom:8px;">
-                ${group.clusters.length} cluster(s) will be shared
+            <!-- Modal Body -->
+            <div style="padding:24px;">
+              <div style="background:#f1f5f9;border:2px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:20px;">
+                <div style="font-size:12px;color:#475569;font-weight:600;margin-bottom:12px;">
+                  📦 ${group.clusters.length} cluster${group.clusters.length !== 1 ? 's' : ''} will be shared
+                </div>
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                  <input type="checkbox" id="share-group-passwords" checked style="cursor:pointer;width:18px;height:18px;accent-color:#DC2626;" />
+                  <span style="font-size:13px;color:#1e293b;font-weight:500;">Include passwords in share link</span>
+                </label>
+                <div style="font-size:11px;color:#64748b;margin-left:28px;margin-top:6px;">
+                  ⚠️ Uncheck for better security (recommended)
+                </div>
               </div>
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                <input type="checkbox" id="share-group-passwords" checked style="cursor:pointer;" />
-                <span style="font-size:12px;color:#eee;">Include passwords in share link</span>
-              </label>
-              <div style="font-size:9px;color:#666;margin-left:24px;margin-top:4px;">
-                ⚠️ Uncheck for better security (recommended)
-              </div>
-            </div>
 
-            <div style="display:flex;gap:10px;">
-              <button id="confirm-share-group-btn" style="
-                flex:1;background:${groupColor.border};color:${groupColor.text};border:none;
-                border-radius:6px;padding:10px;cursor:pointer;font-weight:bold;font-size:13px;">
-                🔗 Generate Link
-              </button>
-              <button id="cancel-share-group-btn" style="
-                flex:1;background:#333;color:#eee;border:none;
-                border-radius:6px;padding:10px;cursor:pointer;font-size:13px;">
-                ✕ Cancel
-              </button>
+              <div style="display:flex;gap:10px;">
+                <button id="confirm-share-group-btn" style="
+                  flex:1;
+                  background:linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+                  color:white;
+                  border:none;
+                  border-radius:10px;
+                  padding:12px;
+                  cursor:pointer;
+                  font-weight:700;
+                  font-size:14px;
+                  letter-spacing:-0.2px;
+                  box-shadow:0 2px 8px rgba(220, 38, 38, 0.25);
+                  transition:all 0.2s;">
+                  Generate Link
+                </button>
+                <button id="cancel-share-group-btn" style="
+                  flex:1;
+                  background:white;
+                  color:#64748b;
+                  border:2px solid #e2e8f0;
+                  border-radius:10px;
+                  padding:12px;
+                  cursor:pointer;
+                  font-weight:700;
+                  font-size:14px;
+                  letter-spacing:-0.2px;
+                  transition:all 0.2s;">
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         `;
 
         document.body.appendChild(modal);
 
+        // Close button (×)
+        const closeBtn = document.getElementById("close-share-modal");
+        if (closeBtn) {
+          closeBtn.addEventListener("click", () => modal.remove());
+          closeBtn.addEventListener("mouseenter", () => {
+            closeBtn.style.background = "rgba(255,255,255,0.3)";
+            closeBtn.style.transform = "scale(1.1)";
+          });
+          closeBtn.addEventListener("mouseleave", () => {
+            closeBtn.style.background = "rgba(255,255,255,0.2)";
+            closeBtn.style.transform = "scale(1)";
+          });
+        }
+
+        // Get button elements
+        const confirmBtn = document.getElementById("confirm-share-group-btn");
+        const cancelBtn = document.getElementById("cancel-share-group-btn");
+
+        // Confirm button hover effects
+        confirmBtn.addEventListener("mouseenter", () => {
+          confirmBtn.style.background = "linear-gradient(135deg, #B91C1C 0%, #991B1B 100%)";
+          confirmBtn.style.boxShadow = "0 4px 16px rgba(220, 38, 38, 0.35)";
+          confirmBtn.style.transform = "translateY(-1px)";
+        });
+        confirmBtn.addEventListener("mouseleave", () => {
+          confirmBtn.style.background = "linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)";
+          confirmBtn.style.boxShadow = "0 2px 8px rgba(220, 38, 38, 0.25)";
+          confirmBtn.style.transform = "translateY(0)";
+        });
+
         // Confirm share
-        document.getElementById("confirm-share-group-btn").addEventListener("click", () => {
+        confirmBtn.addEventListener("click", () => {
           const includePasswords = document.getElementById("share-group-passwords").checked;
           modal.remove();
 
@@ -1022,8 +1119,20 @@ function loadClusters() {
         });
 
         // Cancel share
-        document.getElementById("cancel-share-group-btn").addEventListener("click", () => {
+        cancelBtn.addEventListener("click", () => {
           modal.remove();
+        });
+
+        // Cancel button hover effects
+        cancelBtn.addEventListener("mouseenter", () => {
+          cancelBtn.style.background = "#f8fafc";
+          cancelBtn.style.color = "#1e293b";
+          cancelBtn.style.borderColor = "#cbd5e1";
+        });
+        cancelBtn.addEventListener("mouseleave", () => {
+          cancelBtn.style.background = "white";
+          cancelBtn.style.color = "#64748b";
+          cancelBtn.style.borderColor = "#e2e8f0";
         });
 
         // Close on overlay click
@@ -1032,6 +1141,15 @@ function loadClusters() {
             modal.remove();
           }
         });
+
+        // ESC key to close
+        const escHandler = (e) => {
+          if (e.key === "Escape") {
+            modal.remove();
+            document.removeEventListener("keydown", escHandler);
+          }
+        };
+        document.addEventListener("keydown", escHandler);
       });
 
       // Delete Group — delete all clusters in this group
@@ -1125,37 +1243,90 @@ function loadClusters() {
 
 // ── Login to cluster ──────────────────────────────────
 function loginToCluster(cluster, btn, forceNewTab = false) {
-  showStatus("info", `Opening ${cluster.name}...`);
+  if (!cluster || !cluster.url) {
+    showStatus("error", "❌ Invalid cluster configuration");
+    return;
+  }
 
-  // Get the correct login URL based on cluster type
-  const loginUrl = getLoginUrl(cluster);
+  try {
+    showStatus("info", `🔄 Opening ${cluster.name}...`);
 
-  // Update last login timestamp
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
-    const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
-    if (clusterIndex !== -1) {
-      clusters[clusterIndex].lastLogin = Date.now();
-      chrome.storage.local.set({ clusters });
-    }
-  });
+    // Get the correct login URL based on cluster type
+    const loginUrl = getLoginUrl(cluster);
 
-  chrome.storage.local.get("settings", ({ settings = {} }) => {
-    const openNewTab = forceNewTab || (settings.newTab !== false); // default true, or force if specified
+    // Update last login timestamp
+    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+      if (chrome.runtime.lastError) {
+        console.error("[Login] Failed to update timestamp:", chrome.runtime.lastError);
+        return;
+      }
 
-    if (openNewTab) {
-      // Open in new tab
-      chrome.tabs.create({ url: loginUrl }, (tab) => {
-        waitForTabAndLogin(tab.id, cluster, btn);
-      });
-    } else {
-      // Open in current tab
-      chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-        chrome.tabs.update(tab.id, { url: loginUrl }, (updatedTab) => {
-          waitForTabAndLogin(updatedTab.id, cluster, btn);
+      const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
+      if (clusterIndex !== -1) {
+        clusters[clusterIndex].lastLogin = Date.now();
+        chrome.storage.local.set({ clusters }, () => {
+          if (chrome.runtime.lastError) {
+            console.error("[Login] Failed to save timestamp:", chrome.runtime.lastError);
+          }
         });
-      });
+      }
+    });
+
+    chrome.storage.local.get("settings", ({ settings = {} }) => {
+      if (chrome.runtime.lastError) {
+        showStatus("error", "❌ Failed to load settings: " + chrome.runtime.lastError.message);
+        return;
+      }
+
+      const openNewTab = forceNewTab || (settings.newTab !== false);
+
+      if (openNewTab) {
+        // Open in new tab
+        chrome.tabs.create({ url: loginUrl }, (tab) => {
+          if (chrome.runtime.lastError || !tab) {
+            showStatus("error", "❌ Failed to open tab: " + (chrome.runtime.lastError?.message || "Unknown error"));
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = "Login";
+            }
+            return;
+          }
+          waitForTabAndLogin(tab.id, cluster, btn);
+        });
+      } else {
+        // Open in current tab
+        chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+          if (chrome.runtime.lastError || !tab) {
+            showStatus("error", "❌ Failed to get current tab");
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = "Login";
+            }
+            return;
+          }
+
+          chrome.tabs.update(tab.id, { url: loginUrl }, (updatedTab) => {
+            if (chrome.runtime.lastError || !updatedTab) {
+              showStatus("error", "❌ Failed to navigate tab");
+              if (btn) {
+                btn.disabled = false;
+                btn.textContent = "Login";
+              }
+              return;
+            }
+            waitForTabAndLogin(updatedTab.id, cluster, btn);
+          });
+        });
+      }
+    });
+  } catch (error) {
+    console.error("[Login Error]", error);
+    showStatus("error", "❌ Login failed: " + error.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Login";
     }
-  });
+  }
 }
 
 function waitForTabAndLogin(tabId, cluster, btn) {
@@ -1585,7 +1756,17 @@ function showStatus(type, message) {
   const el = document.getElementById("status");
   el.className = `status ${type}`;
   el.textContent = message;
-  if (type === "success") setTimeout(() => { el.style.display = "none"; }, 3000);
+
+  // Auto-hide success messages after 3 seconds with fade out
+  if (type === "success") {
+    setTimeout(() => {
+      el.style.animation = "toastFadeOut 0.3s ease";
+      setTimeout(() => {
+        el.style.display = "none";
+        el.style.animation = ""; // Reset animation
+      }, 300);
+    }, 3000);
+  }
 }
 
 function escapeHtml(str) {
@@ -1911,27 +2092,56 @@ document.getElementById("save-btn").addEventListener("click", () => {
   // Parse tags
   const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
 
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
-    const newCluster = { name, url, user, password, type };
-    if (role) newCluster.role = role;
-    if (group) newCluster.group = group;
-    if (tags.length > 0) newCluster.tags = tags;
-    if (notes) newCluster.notes = notes;
+  try {
+    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+      if (chrome.runtime.lastError) {
+        showStatus("error", "❌ Failed to load clusters: " + chrome.runtime.lastError.message);
+        return;
+      }
 
-    clusters.push(newCluster);
-    chrome.storage.local.set({ clusters }, () => {
-      document.getElementById("add-form").style.display = "none";
-      document.getElementById("add-btn").style.display  = "block";
-      ["f-name","f-url","f-user","f-password","f-type","f-role","f-group","f-tags","f-notes"].forEach(id => {
-        const el = document.getElementById(id);
-        if (el.tagName === 'SELECT') el.selectedIndex = 0;
-        else el.value = "";
+      // Check for duplicates
+      const duplicate = clusters.find(c => c.url === url);
+      if (duplicate) {
+        showStatus("error", `❌ Cluster with URL already exists: ${duplicate.name}`);
+        return;
+      }
+
+      const newCluster = {
+        name,
+        url,
+        user,
+        password,
+        type,
+        createdAt: Date.now()
+      };
+      if (role) newCluster.role = role;
+      if (group) newCluster.group = group;
+      if (tags.length > 0) newCluster.tags = tags;
+      if (notes) newCluster.notes = notes;
+
+      clusters.push(newCluster);
+      chrome.storage.local.set({ clusters }, () => {
+        if (chrome.runtime.lastError) {
+          showStatus("error", "❌ Failed to save cluster: " + chrome.runtime.lastError.message);
+          return;
+        }
+
+        document.getElementById("add-form").style.display = "none";
+        document.getElementById("add-btn").style.display  = "block";
+        ["f-name","f-url","f-user","f-password","f-type","f-role","f-group","f-tags","f-notes"].forEach(id => {
+          const el = document.getElementById(id);
+          if (el && el.tagName === 'SELECT') el.selectedIndex = 0;
+          else if (el) el.value = "";
+        });
+        clearFormState();
+        loadClusters();
+        showStatus("success", `✅ ${name} added!`);
       });
-      clearFormState(); // Clear saved state after successful save
-      loadClusters();
-      showStatus("success", `✅ ${name} added!`);
     });
-  });
+  } catch (error) {
+    console.error("[Save Error]", error);
+    showStatus("error", "❌ Failed to save cluster: " + error.message);
+  }
 });
 
 // ── Settings ──────────────────────────────────────────
@@ -2993,11 +3203,20 @@ document.getElementById("bulk-delete-btn").addEventListener("click", () => {
 
     if (!confirm(confirmMessage)) return;
 
-    indices.forEach(i => clusters.splice(i, 1));
-    chrome.storage.local.set({ clusters }, () => {
-      loadClusters();
-      showStatus("success", `✅ Deleted ${indices.length} cluster(s)`);
-    });
+    try {
+      indices.forEach(i => clusters.splice(i, 1));
+      chrome.storage.local.set({ clusters }, () => {
+        if (chrome.runtime.lastError) {
+          showStatus("error", "❌ Failed to delete clusters: " + chrome.runtime.lastError.message);
+          return;
+        }
+        loadClusters();
+        showStatus("success", `✅ Deleted ${indices.length} cluster(s)`);
+      });
+    } catch (error) {
+      console.error("[Delete Error]", error);
+      showStatus("error", "❌ Failed to delete clusters: " + error.message);
+    }
   });
 });
 
@@ -3136,8 +3355,34 @@ function handleGroupDragEnd(e) {
   document.querySelectorAll(".cluster-group").forEach(el => el.classList.remove("drag-over"));
 }
 
+// ── Migrate existing clusters to add createdAt timestamp ──
+function migrateClusterTimestamps() {
+  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    let migrated = false;
+    const now = Date.now();
+
+    clusters.forEach(cluster => {
+      if (!cluster.createdAt) {
+        // For existing clusters without createdAt, set it to now
+        // Or if they have lastLogin, use that as an approximation
+        cluster.createdAt = cluster.lastLogin || now;
+        migrated = true;
+      }
+    });
+
+    if (migrated) {
+      chrome.storage.local.set({ clusters }, () => {
+        console.log("Migrated clusters with createdAt timestamps");
+        loadClusters();
+      });
+    } else {
+      loadClusters();
+    }
+  });
+}
+
 // ── Init ──────────────────────────────────────────────
-loadClusters();
+migrateClusterTimestamps(); // Migrate old clusters first
 loadSettings();
 restoreFormState(); // Restore form data if user was adding a cluster
 setupFormAutosave(); // Auto-save form changes
@@ -3323,12 +3568,38 @@ function showPreview(clusters) {
   const list = document.getElementById("preview-list");
   list.style.display = "block";
   list.innerHTML = `
-    <div style="background:#1a3a6e;padding:10px 12px;border-radius:8px 8px 0 0;margin:-10px -12px 10px -12px;border-left:4px solid #EE0000;">
-      <div style="font-size:13px;font-weight:bold;color:#90b8f0;margin-bottom:2px;">
-        ✅ Found ${clusters.length} Cluster(s)
-      </div>
-      <div style="font-size:11px;color:#6a9abd;">
-        Review the clusters below and click Import to add them
+    <div style="
+      background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+      padding: 16px;
+      border-radius: 12px 12px 0 0;
+      margin: -16px -16px 16px -16px;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+    ">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+        <div>
+          <div style="font-size:16px;font-weight:700;color:white;margin-bottom:4px;letter-spacing:-0.3px;text-shadow:0 2px 4px rgba(0,0,0,0.2);">
+            ✅ Found ${clusters.length} Cluster${clusters.length !== 1 ? 's' : ''}
+          </div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.9);font-weight:500;">
+            Review the clusters below
+          </div>
+        </div>
+        <button id="confirm-import-btn-header" style="
+          background: white;
+          color: #DC2626;
+          border: none;
+          border-radius: 8px;
+          padding: 10px 20px;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: -0.2px;
+          white-space: nowrap;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          transition: all 0.2s;
+        ">
+          Import All
+        </button>
       </div>
     </div>
   `;
@@ -3337,27 +3608,46 @@ function showPreview(clusters) {
     const item = document.createElement("div");
     item.className = "preview-item";
     const warn = !c.url || !c.user || !c.password;
+
+    // Detect platform type
+    const type = c.type || "openshift";
+    const platformIcon = type === "vsphere" ? "🔷" : "🔴";
+
     item.innerHTML = `
       <div class="preview-dot ${warn ? 'warn' : ''}"></div>
-      <div style="min-width:0">
-        <div style="font-weight:bold;font-size:12px;">${escapeHtml(c.name)}</div>
-        <div style="font-size:10px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.url)}</div>
+      <div style="min-width:0;flex:1;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="font-weight:700;font-size:13px;color:#0f172a;">${escapeHtml(c.name)}</span>
+          <span style="font-size:11px;">${platformIcon}</span>
+        </div>
+        <div style="font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;">${escapeHtml(c.url)}</div>
       </div>
-      <div style="font-size:10px;color:#666;margin-left:auto;flex-shrink:0;">${escapeHtml(c.user)}</div>
+      <div style="
+        font-size:11px;
+        color:#475569;
+        font-weight:600;
+        background:#f1f5f9;
+        padding:4px 8px;
+        border-radius:6px;
+        flex-shrink:0;
+      ">${escapeHtml(c.user)}</div>
     `;
     list.appendChild(item);
   });
 
-  // Confirm button
-  const existing = document.getElementById("confirm-import-btn");
-  if (existing) existing.remove();
-
-  const confirmBtn = document.createElement("button");
-  confirmBtn.id = "confirm-import-btn";
-  confirmBtn.className = "confirm-import-btn";
-  confirmBtn.textContent = `✅ Import ${clusters.length} Cluster(s)`;
-  confirmBtn.addEventListener("click", confirmImport);
-  list.appendChild(confirmBtn);
+  // Add event listener to header import button
+  const headerBtn = document.getElementById("confirm-import-btn-header");
+  if (headerBtn) {
+    headerBtn.addEventListener("click", confirmImport);
+    headerBtn.addEventListener("mouseenter", () => {
+      headerBtn.style.background = "#f8fafc";
+      headerBtn.style.transform = "scale(1.05)";
+    });
+    headerBtn.addEventListener("mouseleave", () => {
+      headerBtn.style.background = "white";
+      headerBtn.style.transform = "scale(1)";
+    });
+  }
 
   // Scroll to preview with smooth animation
   setTimeout(() => {
@@ -3375,36 +3665,66 @@ function showPreview(clusters) {
 
 // ── Confirm and save clusters ─────────────────────────
 function confirmImport() {
-  if (!pendingClusters.length) return;
+  if (!pendingClusters.length) {
+    showStatus("error", "❌ No clusters to import");
+    return;
+  }
 
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
-    const existing = new Set(clusters.map(c => c.url));
-    let added = 0, skipped = 0;
+  try {
+    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+      if (chrome.runtime.lastError) {
+        showStatus("error", "❌ Failed to load existing clusters: " + chrome.runtime.lastError.message);
+        return;
+      }
 
-    for (const c of pendingClusters) {
-      if (existing.has(c.url)) { skipped++; continue; }
-      clusters.push(c);
-      added++;
-    }
+      const existing = new Set(clusters.map(c => c.url));
+      let added = 0, skipped = 0;
 
-    chrome.storage.local.set({ clusters }, () => {
-      document.getElementById("preview-list").style.display = "none";
-      pendingClusters = [];
+      for (const c of pendingClusters) {
+        if (existing.has(c.url)) {
+          skipped++;
+          continue;
+        }
+        // Add createdAt timestamp
+        c.createdAt = Date.now();
+        clusters.push(c);
+        added++;
+      }
 
-      // ── Bug fix: switch to clusters tab and re-render so user sees results immediately
-      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-      document.querySelector('.tab[data-tab="clusters"]').classList.add("active");
-      document.getElementById("tab-clusters").classList.add("active");
+      if (added === 0) {
+        showStatus("info", `ℹ️ All ${skipped} cluster(s) already exist (duplicates skipped)`);
+        document.getElementById("preview-list").style.display = "none";
+        pendingClusters = [];
+        return;
+      }
 
-      loadClusters(); // Re-render cluster list
+      chrome.storage.local.set({ clusters }, () => {
+        if (chrome.runtime.lastError) {
+          showStatus("error", "❌ Failed to save clusters: " + chrome.runtime.lastError.message);
+          return;
+        }
 
-      const msg = skipped > 0
-        ? `✅ Imported ${added} cluster(s). Skipped ${skipped} duplicate(s).`
-        : `✅ Imported ${added} cluster(s) successfully!`;
-      showStatus("success", msg); // Show in clusters tab status
+        document.getElementById("preview-list").style.display = "none";
+        pendingClusters = [];
+
+        // Switch to clusters tab
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+        document.querySelector('.tab[data-tab="clusters"]').classList.add("active");
+        document.getElementById("tab-clusters").classList.add("active");
+
+        loadClusters();
+
+        const msg = skipped > 0
+          ? `✅ Imported ${added} cluster(s). Skipped ${skipped} duplicate(s).`
+          : `✅ Imported ${added} cluster(s) successfully!`;
+        showStatus("success", msg);
+      });
     });
-  });
+  } catch (error) {
+    console.error("[Import Error]", error);
+    showStatus("error", "❌ Import failed: " + error.message);
+  }
 }
 
 // ── Auto-detect group name from Jenkins URL ──────────
@@ -3446,6 +3766,18 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
 
   if (!jenkinsUrl) {
     showImportStatus("error", "❌ Please enter a Jenkins job URL");
+    return;
+  }
+
+  // Validate URL format
+  try {
+    const url = new URL(jenkinsUrl);
+    if (!url.protocol.startsWith('http')) {
+      showImportStatus("error", "❌ Invalid Jenkins URL - must start with http:// or https://");
+      return;
+    }
+  } catch (e) {
+    showImportStatus("error", "❌ Invalid Jenkins URL format - please enter a valid URL (e.g., https://jenkins.example.com/job/MyJob/123)");
     return;
   }
 
@@ -4018,9 +4350,17 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
   } catch (error) {
     console.error("Jenkins fetch error:", error);
 
-    // Provide helpful error message
-    if (error.name === 'TypeError' || error.message.includes("NetworkError")) {
-      showImportStatus("error", `❌ Cannot access Jenkins - check URL and authentication. Or use "Paste JSON Directly" option above.`);
+    // Provide helpful error message based on error type
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      showImportStatus("error", "❌ Failed to connect to Jenkins - check if the URL is correct and the server is accessible");
+      debugLog(`[Error] Network error: ${error.message}`);
+      debugLog(`[Error] This usually means:`);
+      debugLog(`  → Invalid URL or hostname`);
+      debugLog(`  → Jenkins server is down or unreachable`);
+      debugLog(`  → CORS blocking the request`);
+      debugLog(`  → Network firewall or VPN issue`);
+    } else if (error.name === 'TypeError' || error.message.includes("NetworkError")) {
+      showImportStatus("error", "❌ Network error - unable to reach Jenkins server. Check URL and try again.");
     } else {
       showImportStatus("error", `❌ Failed to fetch from Jenkins: ${error.message}`);
     }

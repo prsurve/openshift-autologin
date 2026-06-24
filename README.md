@@ -4,12 +4,18 @@
 
 **Perfect for:** QE teams, OpenShift administrators, VMware admins, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-3.0.0-red)
+![Version](https://img.shields.io/badge/version-3.1.0-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v3.0.0:**
+**New in v3.1.0:**
+- 🛡️ **Jenkins URL Validation** - Invalid Jenkins URLs are now validated before fetch attempt with clear error messages
+- ⚡ **Enhanced Error Handling** - Better error messages for network failures, invalid URLs, and connection issues
+- 📋 **Improved User Feedback** - Detailed toast notifications for all button click errors with actionable messages
+- 🔍 **Debug Logging** - Enhanced debug output for Jenkins fetch failures with troubleshooting hints
+
+**v3.0.0 Features:**
 - 🎨 **Complete UI Redesign** - Modern, professional interface with gradients and smooth animations
 - 🪟 **Floating Modal Windows** - Beautiful modal dialogs for adding/editing clusters instead of inline forms
 - 🎯 **Compact Design** - Optimized spacing reduces clutter by 20%, shows more content without scrolling
@@ -430,7 +436,7 @@ For auto-detection:
 
 ## 🎨 UI Features
 
-### Modern Modal Design **(New in v3.0)**
+### Modern Modal Design **(v3.0)**
 - **Floating Windows**: Add/Edit clusters in beautiful modal overlays instead of inline forms
 - **Professional Header**: Gradient red header with close button (×)
 - **Click Outside**: Close modals by clicking overlay, pressing ESC, or clicking ×
@@ -439,7 +445,7 @@ For auto-detection:
 - **Save Cluster Modal**: Clean white modal when auto-login credentials are detected
 - **Glassmorphism**: Modern blur effects on modal overlays
 
-### Compact & Clean Design **(New in v3.0)**
+### Compact & Clean Design **(v3.0)**
 - **20% Space Reduction**: Optimized padding shows more clusters without scrolling
 - **Color-Coded Buttons**: 
   - **+ Add** (Red gradient) - Primary action
@@ -482,7 +488,7 @@ For auto-detection:
 ### Adjustable Popup Size **(v2.2)**
 - Choose from 4 sizes in Settings → Appearance
 - **Compact** (340px) - Original size
-- **Normal** (500px) - Default, modern size **(updated in v3.0)**
+- **Normal** (500px) - Default, modern size **(v3.0)**
 - **Large** (600px) - Spacious layout
 - **X-Large** (750px) - Maximum width
 
@@ -881,6 +887,25 @@ MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
+## 🎨 What's New in v3.1.0?
+
+### Enhanced Error Handling & Validation
+
+v3.1 focuses on **reliability and user experience** with comprehensive error handling:
+
+#### Jenkins Import Improvements
+- **URL Validation**: Invalid URLs caught before fetch attempt
+- **Clear Error Messages**: User-friendly messages for network failures
+- **Debug Logging**: Detailed troubleshooting hints for failures
+
+#### Comprehensive Error Handling
+- **Button Click Safety**: All major operations have proper error handling
+- **Toast Notifications**: Clear success/error messages for every action
+- **Chrome API Safety**: Proper error checks on all browser API calls
+- **User Guidance**: Actionable error messages that help users fix issues
+
+---
+
 ## 🎨 What's New in v3.0.0?
 
 ### Complete UI Overhaul
@@ -932,7 +957,7 @@ Both the Add Cluster and Save Cluster modals feature:
 
 ## 📸 Screenshots
 
-### Main Interface (v3.0)
+### Main Interface (v3.1)
 - **Modern Header**: Gradient background with animated effects
 - **Clusters Tab**: Grouped clusters with role badges, search, platform filter, and Login All
 - **Floating Modals**: Beautiful add/edit dialogs with smooth animations
