@@ -3,6 +3,44 @@
 
 (function () {
 
+  // ── Safe Chrome API Wrapper ────────────────────────────
+  // Gracefully handles "Extension context invalidated" errors
+  function safeStorageGet(keys, callback) {
+    try {
+      if (!chrome.runtime?.id) {
+        console.log("[Auto-Login] Extension context invalidated, skipping storage get");
+        return;
+      }
+      chrome.storage.local.get(keys, (result) => {
+        if (chrome.runtime.lastError) {
+          console.log("[Auto-Login] Storage get error:", chrome.runtime.lastError.message);
+          return;
+        }
+        callback(result);
+      });
+    } catch (error) {
+      console.log("[Auto-Login] Extension context invalidated:", error.message);
+    }
+  }
+
+  function safeStorageSet(items, callback) {
+    try {
+      if (!chrome.runtime?.id) {
+        console.log("[Auto-Login] Extension context invalidated, skipping storage set");
+        return;
+      }
+      chrome.storage.local.set(items, () => {
+        if (chrome.runtime.lastError) {
+          console.log("[Auto-Login] Storage set error:", chrome.runtime.lastError.message);
+          return;
+        }
+        if (callback) callback();
+      });
+    } catch (error) {
+      console.log("[Auto-Login] Extension context invalidated:", error.message);
+    }
+  }
+
   // ── Vendor Detection Registry ──────────────────────────
   const DETECTORS = {
     openshift: {
@@ -218,7 +256,7 @@
 
       if (username && password) {
         // Use chrome.storage.local instead of sessionStorage to persist across OAuth redirects
-        chrome.storage.local.set({
+        safeStorageSet({
           "os-captured-username": username,
           "os-captured-password": password,
           "os-captured-url": window.location.origin,
@@ -233,7 +271,7 @@
 
           // Re-enable auto-login for this cluster immediately upon manual login attempt
           // This ensures auto-login works again after user fixes their credentials
-          chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+          safeStorageGet("clusters", ({ clusters = [] }) => {
             // Use the same matching logic to find the cluster
             const matchedCluster = matchCluster(clusters);
             if (matchedCluster) {
@@ -248,7 +286,7 @@
                 if (clusterIndex !== -1) {
                   const clusterName = clusters[clusterIndex].name;
                   delete clusters[clusterIndex].autoLoginDisabled;
-                  chrome.storage.local.set({ clusters }, () => {
+                  safeStorageSet({ clusters }, () => {
                     console.log(`[Auto-Login Content] ✅ Re-enabled auto-login for ${clusterName} - manual login detected`);
                     // Show success toast after a short delay (wait for page to redirect)
                     setTimeout(() => showSuccessToast(clusterName), 1500);
@@ -837,7 +875,7 @@
     // Set up credential capture for manual login
     captureManualLogin();
 
-    chrome.storage.local.get(["clusters", "settings"], ({ clusters = [], settings = {} }) => {
+    safeStorageGet(["clusters", "settings"], ({ clusters = [], settings = {} }) => {
       console.log("[Auto-Login Content] Settings:", settings);
       console.log("[Auto-Login Content] Auto-login enabled:", settings.autoLogin);
 
@@ -908,11 +946,11 @@
         showErrorBanner(cluster.name);
 
         // Find this cluster in storage and disable auto-login (permanent)
-        chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+        safeStorageGet("clusters", ({ clusters = [] }) => {
           const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
           if (clusterIndex !== -1) {
             clusters[clusterIndex].autoLoginDisabled = true;
-            chrome.storage.local.set({ clusters }, () => {
+            safeStorageSet({ clusters }, () => {
               console.log(`[Auto-Login Content] ❌ Auto-login disabled for ${cluster.name} due to authentication error`);
               console.log(`[Auto-Login Content] Please update credentials and login manually to re-enable`);
             });
@@ -1090,15 +1128,36 @@
     overlay.id = "os-save-cluster-form";
     overlay.style.cssText = `
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.8); z-index: 9999999;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 9999999;
       display: flex; align-items: center; justify-content: center;
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      animation: fadeIn 0.2s ease;
+      padding: 20px;
     `;
+
+    // Add animation keyframes
+    if (!document.getElementById("os-modal-animations")) {
+      const style = document.createElement("style");
+      style.id = "os-modal-animations";
+      style.textContent = `
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-30px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
 
     const suggestedName = window.location.hostname.split('.')[0];
 
     // Get captured credentials and existing groups
-    chrome.storage.local.get([
+    safeStorageGet([
       "clusters",
       "os-captured-username",
       "os-captured-password",
@@ -1133,8 +1192,8 @@
       });
 
       const preFilledNote = (capturedUsername && capturedPassword) ?
-        `<div style="background:#1a3a1a;border:1px solid #2a4a2a;border-radius:6px;padding:8px;margin-bottom:16px;">
-          <div style="font-size:11px;color:#6bffb4;">✅ Pre-filled with login credentials</div>
+        `<div style="background:linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);border:2px solid #6ee7b7;border-radius:10px;padding:12px;margin-bottom:18px;">
+          <div style="font-size:12px;color:#065f46;font-weight:600;">✅ Pre-filled with captured credentials</div>
         </div>` : '';
       const existingGroups = [...new Set(clusters.filter(c => c.group).map(c => c.group))].sort();
 
@@ -1146,83 +1205,174 @@
 
       overlay.innerHTML = `
         <div style="
-          background: #1a1a2e; border-radius: 12px; padding: 24px;
-          width: 450px; max-width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-          border: 2px solid #EE0000; max-height: 90vh; overflow-y: auto;
+          background: white;
+          border-radius: 16px;
+          width: 480px;
+          max-width: 95%;
+          max-height: 90vh;
+          overflow-y: auto;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+          animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         ">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-            <img src="${chrome.runtime.getURL('icon48.png')}" width="40" height="40" style="border-radius:50%;" />
-            <div>
-              <div style="font-size:18px;font-weight:bold;color:#eee;">Add Cluster</div>
-              <div style="font-size:11px;color:#888;">Save credentials for auto-login</div>
+          <!-- Modal Header -->
+          <div style="
+            background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+            padding: 20px 24px;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          ">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <img src="${chrome.runtime.getURL('icon48.png')}" width="40" height="40" style="border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.3);" />
+              <div>
+                <div style="font-size:18px;font-weight:700;color:white;letter-spacing:-0.3px;text-shadow:0 2px 4px rgba(0,0,0,0.2);">Save Cluster</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.9);font-weight:600;margin-top:2px;">Auto-login credentials detected</div>
+              </div>
             </div>
+            <button id="os-save-close-x" style="
+              background: rgba(255,255,255,0.2);
+              border: none;
+              color: white;
+              width: 32px;
+              height: 32px;
+              border-radius: 8px;
+              cursor: pointer;
+              font-size: 20px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              transition: all 0.2s;
+              line-height: 1;
+            ">×</button>
           </div>
+
+          <!-- Modal Body -->
+          <div style="padding:24px;">
 
           ${preFilledNote}
 
-          <div style="margin-bottom:16px;">
-            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Cluster Name</label>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;color:#475569;font-weight:700;margin-bottom:6px;letter-spacing:0.2px;">Cluster Name</label>
             <input id="os-save-name" type="text" value="${suggestedName}"
-              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
-                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;" />
+              style="width:100%;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;
+                     padding:10px 14px;color:#1e293b;font-size:13px;box-sizing:border-box;font-weight:500;transition:all 0.2s;" />
           </div>
 
-          <div style="margin-bottom:16px;">
-            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Console URL</label>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;color:#475569;font-weight:700;margin-bottom:6px;letter-spacing:0.2px;">Console URL</label>
             <input id="os-save-url" type="text" value="${currentUrl}" readonly
-              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
-                     padding:10px;color:#888;font-size:13px;box-sizing:border-box;" />
+              style="width:100%;background:#f1f5f9;border:2px solid #e2e8f0;border-radius:10px;
+                     padding:10px 14px;color:#64748b;font-size:13px;box-sizing:border-box;font-weight:500;" />
           </div>
 
-          <div style="margin-bottom:16px;">
-            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Username</label>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;color:#475569;font-weight:700;margin-bottom:6px;letter-spacing:0.2px;">Username</label>
             <input id="os-save-user" type="text" placeholder="Enter username" value="${capturedUsername}"
-              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
-                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;" />
+              style="width:100%;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;
+                     padding:10px 14px;color:#1e293b;font-size:13px;box-sizing:border-box;font-weight:500;transition:all 0.2s;" />
           </div>
 
-          <div style="margin-bottom:16px;">
-            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Password</label>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;color:#475569;font-weight:700;margin-bottom:6px;letter-spacing:0.2px;">Password</label>
             <input id="os-save-password" type="password" placeholder="Enter password" value="${capturedPassword}"
-              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
-                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;" />
+              style="width:100%;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;
+                     padding:10px 14px;color:#1e293b;font-size:13px;box-sizing:border-box;font-weight:500;transition:all 0.2s;" />
           </div>
 
-          <div style="margin-bottom:16px;">
-            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Group (Optional)</label>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;color:#475569;font-weight:700;margin-bottom:6px;letter-spacing:0.2px;">Group (Optional)</label>
             <select id="os-save-group"
-              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
-                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;cursor:pointer;">
+              style="width:100%;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;
+                     padding:10px 14px;color:#1e293b;font-size:13px;box-sizing:border-box;cursor:pointer;font-weight:500;transition:all 0.2s;">
               ${groupOptions}
             </select>
             <input id="os-save-new-group" type="text" placeholder="Enter new group name"
-              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
-                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;margin-top:8px;display:none;" />
+              style="width:100%;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;
+                     padding:10px 14px;color:#1e293b;font-size:13px;box-sizing:border-box;margin-top:8px;display:none;font-weight:500;transition:all 0.2s;" />
           </div>
 
           <div style="margin-bottom:20px;">
-            <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">Role (Optional)</label>
-            <input id="os-save-role" type="text" placeholder="e.g., admin, developer, viewer"
-              style="width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;
-                     padding:10px;color:#eee;font-size:13px;box-sizing:border-box;" />
+            <label style="display:block;font-size:12px;color:#475569;font-weight:700;margin-bottom:6px;letter-spacing:0.2px;">Role (Optional)</label>
+            <input id="os-save-role" type="text" placeholder="e.g., hub, primary, secondary"
+              style="width:100%;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;
+                     padding:10px 14px;color:#1e293b;font-size:13px;box-sizing:border-box;font-weight:500;transition:all 0.2s;" />
           </div>
 
           <div style="display:flex;gap:10px;">
             <button id="os-save-confirm" style="
-              flex:1;background:#EE0000;color:white;border:none;border-radius:6px;
-              padding:12px;cursor:pointer;font-weight:bold;font-size:14px;">
-              ✅ Save Cluster
+              flex:1;
+              background:linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+              color:white;
+              border:none;
+              border-radius:10px;
+              padding:12px;
+              cursor:pointer;
+              font-weight:700;
+              font-size:14px;
+              letter-spacing:-0.2px;
+              box-shadow:0 2px 8px rgba(220, 38, 38, 0.25);
+              transition:all 0.2s;">
+              Save Cluster
             </button>
             <button id="os-save-cancel" style="
-              flex:1;background:#333;color:#eee;border:none;border-radius:6px;
-              padding:12px;cursor:pointer;font-size:14px;">
-              ✕ Cancel
+              flex:1;
+              background:white;
+              color:#64748b;
+              border:2px solid #e2e8f0;
+              border-radius:10px;
+              padding:12px;
+              cursor:pointer;
+              font-weight:700;
+              font-size:14px;
+              letter-spacing:-0.2px;
+              transition:all 0.2s;">
+              Cancel
             </button>
+          </div>
           </div>
         </div>
       `;
 
       document.body.appendChild(overlay);
+
+      // Close modal function
+      const closeModal = () => {
+        overlay.remove();
+        sessionStorage.setItem("os-save-dismissed", "true");
+      };
+
+      // Close button (X)
+      const closeBtn = document.getElementById("os-save-close-x");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", closeModal);
+        // Hover effect
+        closeBtn.addEventListener("mouseenter", () => {
+          closeBtn.style.background = "rgba(255,255,255,0.3)";
+          closeBtn.style.transform = "scale(1.1)";
+        });
+        closeBtn.addEventListener("mouseleave", () => {
+          closeBtn.style.background = "rgba(255,255,255,0.2)";
+          closeBtn.style.transform = "scale(1)";
+        });
+      }
+
+      // Click outside to close
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) {
+          closeModal();
+        }
+      });
+
+      // ESC key to close
+      const escHandler = (e) => {
+        if (e.key === "Escape") {
+          closeModal();
+          document.removeEventListener("keydown", escHandler);
+        }
+      };
+      document.addEventListener("keydown", escHandler);
 
       // Handle group selection
       const groupSelect = document.getElementById("os-save-group");
@@ -1284,13 +1434,13 @@
           }
         }
 
-        chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+        safeStorageGet("clusters", ({ clusters = [] }) => {
           const newCluster = { name, url, user, password, type: detectedVendor };
           if (group) newCluster.group = group;
           if (role) newCluster.role = role;
 
           clusters.push(newCluster);
-          chrome.storage.local.set({ clusters }, () => {
+          safeStorageSet({ clusters }, () => {
             // Clear captured credentials from session
             chrome.storage.local.remove([
               "os-captured-username",
@@ -1307,13 +1457,49 @@
       });
 
       // Handle cancel
-      document.getElementById("os-save-cancel").addEventListener("click", () => {
-        // Clear captured credentials from session
-        sessionStorage.removeItem("os-captured-username");
-        sessionStorage.removeItem("os-captured-password");
-        sessionStorage.removeItem("os-captured-url");
+      const cancelBtn = document.getElementById("os-save-cancel");
+      cancelBtn.addEventListener("click", closeModal);
 
-        overlay.remove();
+      // Cancel button hover effects
+      cancelBtn.addEventListener("mouseenter", () => {
+        cancelBtn.style.background = "#f8fafc";
+        cancelBtn.style.color = "#1e293b";
+        cancelBtn.style.borderColor = "#cbd5e1";
+      });
+      cancelBtn.addEventListener("mouseleave", () => {
+        cancelBtn.style.background = "white";
+        cancelBtn.style.color = "#64748b";
+        cancelBtn.style.borderColor = "#e2e8f0";
+      });
+
+      // Save button hover effects
+      const saveBtn = document.getElementById("os-save-confirm");
+      saveBtn.addEventListener("mouseenter", () => {
+        saveBtn.style.background = "linear-gradient(135deg, #B91C1C 0%, #991B1B 100%)";
+        saveBtn.style.boxShadow = "0 4px 16px rgba(220, 38, 38, 0.35)";
+        saveBtn.style.transform = "translateY(-1px)";
+      });
+      saveBtn.addEventListener("mouseleave", () => {
+        saveBtn.style.background = "linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)";
+        saveBtn.style.boxShadow = "0 2px 8px rgba(220, 38, 38, 0.25)";
+        saveBtn.style.transform = "translateY(0)";
+      });
+
+      // Input focus effects
+      ["os-save-name", "os-save-user", "os-save-password", "os-save-role", "os-save-new-group"].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+          input.addEventListener("focus", () => {
+            input.style.borderColor = "#DC2626";
+            input.style.background = "white";
+            input.style.boxShadow = "0 0 0 4px rgba(220, 38, 38, 0.1)";
+          });
+          input.addEventListener("blur", () => {
+            input.style.borderColor = "#e2e8f0";
+            input.style.background = "#f8fafc";
+            input.style.boxShadow = "none";
+          });
+        }
       });
 
       // Handle enter key
@@ -1376,7 +1562,7 @@
 
     const currentUrl = window.location.origin;
 
-    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    safeStorageGet("clusters", ({ clusters = [] }) => {
       // Check if this cluster is already saved
       const exists = clusters.some(c => {
         try {
@@ -1397,7 +1583,7 @@
     // Only check on console pages (OpenShift or vSphere)
     if (!isConsolePage()) return;
 
-    chrome.storage.local.get([
+    safeStorageGet([
       "clusters",
       "os-captured-username",
       "os-captured-password",
@@ -1455,7 +1641,7 @@
             if (matchedCluster.autoLoginDisabled) {
               // Re-enable auto-login after successful manual login
               delete clusters[matchingClusterIndex].autoLoginDisabled;
-              chrome.storage.local.set({ clusters }, () => {
+              safeStorageSet({ clusters }, () => {
                 console.log(`[Auto-Login Content] ✅ Re-enabled auto-login for ${matchedCluster.name} after successful manual login`);
               });
             }
