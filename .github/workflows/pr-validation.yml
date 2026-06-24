@@ -4,6 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   validate-pr:
     name: Validate Pull Request
@@ -46,13 +51,15 @@ jobs:
             echo "version_changed=false" >> $GITHUB_ENV
           fi
 
-      - name: Run validation suite
-        uses: ./.github/workflows/validate.yml
+      # Note: Can't reuse workflows in same run, so we skip full validation here
+      # The main validate.yml already runs on PRs automatically
 
       - name: Comment on PR
         uses: actions/github-script@v7
         if: always()
         with:
+          # Use PAT_TOKEN if available, fall back to GITHUB_TOKEN
+          github-token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const status = '${{ job.status }}';
             const versionChanged = '${{ env.version_changed }}';
@@ -67,36 +74,46 @@ jobs:
 
             if (versionChanged === 'true') {
               message += '📦 Version bump detected\n';
+            } else {
+              message += 'ℹ️  No version change detected\n';
             }
 
             message += '\n---\n';
             message += '_Automated validation by GitHub Actions_';
 
-            // Find existing bot comment
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const botComment = comments.find(comment =>
-              comment.user.type === 'Bot' && comment.body.includes('PR Validation Results')
-            );
-
-            if (botComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: message
-              });
-            } else {
-              // Create new comment
-              await github.rest.issues.createComment({
+            try {
+              // Find existing bot comment
+              const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: message
               });
+
+              const botComment = comments.find(comment =>
+                comment.user.type === 'Bot' && comment.body.includes('PR Validation Results')
+              );
+
+              if (botComment) {
+                // Update existing comment
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: message
+                });
+                console.log('Updated existing comment');
+              } else {
+                // Create new comment
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: message
+                });
+                console.log('Created new comment');
+              }
+            } catch (error) {
+              console.log('Could not create/update comment:', error.message);
+              // Don't fail the workflow if commenting fails
+              core.warning('Failed to comment on PR: ' + error.message);
             }
