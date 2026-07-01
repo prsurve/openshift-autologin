@@ -50,14 +50,14 @@ function safeStorageGet(keys, callback) {
   try {
     chrome.storage.local.get(keys, (result) => {
       if (chrome.runtime.lastError) {
-        console.error("[Storage Get Error]", chrome.runtime.lastError);
+        console.error('[Storage Get Error]', chrome.runtime.lastError);
         callback({});
         return;
       }
       callback(result);
     });
   } catch (error) {
-    console.error("[Storage Get Exception]", error);
+    console.error('[Storage Get Exception]', error);
     callback({});
   }
 }
@@ -66,14 +66,14 @@ function safeStorageSet(items, callback) {
   try {
     chrome.storage.local.set(items, () => {
       if (chrome.runtime.lastError) {
-        console.error("[Storage Set Error]", chrome.runtime.lastError);
+        console.error('[Storage Set Error]', chrome.runtime.lastError);
         if (callback) callback(false);
         return;
       }
       if (callback) callback(true);
     });
   } catch (error) {
-    console.error("[Storage Set Exception]", error);
+    console.error('[Storage Set Exception]', error);
     if (callback) callback(false);
   }
 }
@@ -82,38 +82,38 @@ function safeTabsCreate(options, callback) {
   try {
     chrome.tabs.create(options, (tab) => {
       if (chrome.runtime.lastError || !tab) {
-        console.error("[Tabs Create Error]", chrome.runtime.lastError);
+        console.error('[Tabs Create Error]', chrome.runtime.lastError);
         if (callback) callback(null);
         return;
       }
       if (callback) callback(tab);
     });
   } catch (error) {
-    console.error("[Tabs Create Exception]", error);
+    console.error('[Tabs Create Exception]', error);
     if (callback) callback(null);
   }
 }
 
 // ── Get the correct login URL for a cluster ──
 function getLoginUrl(cluster) {
-  const type = cluster.type || "openshift";
+  const type = cluster.type || 'openshift';
 
-  if (type === "vsphere") {
+  if (type === 'vsphere') {
     try {
       const url = new URL(cluster.url);
       // If the URL is just the root or doesn't have /ui/ path, add it
-      if (url.pathname === "/" || url.pathname === "") {
-        url.pathname = "/ui/";
+      if (url.pathname === '/' || url.pathname === '') {
+        url.pathname = '/ui/';
         return url.toString();
       }
       // If it has /ui but no trailing slash, add it
-      if (url.pathname === "/ui") {
-        url.pathname = "/ui/";
+      if (url.pathname === '/ui') {
+        url.pathname = '/ui/';
         return url.toString();
       }
       return cluster.url;
     } catch (e) {
-      console.error("Invalid URL:", cluster.url);
+      console.error('Invalid URL:', cluster.url);
       return cluster.url;
     }
   }
@@ -166,21 +166,21 @@ function getGroupColor(groupName) {
 
 // ── Detect cluster role from name, URL, or explicit role field ──
 function detectRole(cluster) {
-  const type = cluster.type || "openshift";
+  const type = cluster.type || 'openshift';
 
   // vSphere role detection
-  if (type === "vsphere") {
+  if (type === 'vsphere') {
     const vSphereRoleMap = {
-      "vcenter": { key: "vcenter", label: "vCenter", icon: "🔷", desc: "VMware vCenter Server" },
-      "esxi":    { key: "esxi",    label: "ESXi",    icon: "⚙️",  desc: "VMware ESXi Host" },
-      "unknown": { key: "unknown", label: "VMware",  icon: "🔷", desc: "VMware platform" },
+      'vcenter': { key: 'vcenter', label: 'vCenter', icon: '🔷', desc: 'VMware vCenter Server' },
+      'esxi':    { key: 'esxi',    label: 'ESXi',    icon: '⚙️',  desc: 'VMware ESXi Host' },
+      'unknown': { key: 'unknown', label: 'VMware',  icon: '🔷', desc: 'VMware platform' },
     };
 
     if (cluster.role && vSphereRoleMap[cluster.role]) return vSphereRoleMap[cluster.role];
 
-    const name = (cluster.name || "").toLowerCase();
-    const url = (cluster.url || "").toLowerCase();
-    const combined = name + " " + url;
+    const name = (cluster.name || '').toLowerCase();
+    const url = (cluster.url || '').toLowerCase();
+    const combined = name + ' ' + url;
 
     // vCenter patterns
     if (/vcenter|vc\d+/.test(combined)) {
@@ -197,57 +197,57 @@ function detectRole(cluster) {
 
   // OpenShift role detection
   const roleMap = {
-    "hub":         { key: "hub",         label: "Active Hub",   icon: "🟣", desc: "Active ACM Hub — manages all spoke clusters" },
-    "hub-passive": { key: "hub-passive", label: "Passive Hub",  icon: "🔵", desc: "Passive ACM Hub (Disaster Recovery standby)" },
-    "primary":     { key: "primary",     label: "Primary C1",   icon: "🟢", desc: "Primary managed cluster (C1)" },
-    "secondary":   { key: "secondary",   label: "Secondary C2", icon: "🟡", desc: "Secondary managed cluster (C2)" },
-    "unknown":     { key: "unknown",     label: "Cluster",      icon: "⚪", desc: "Role not detected" },
+    'hub':         { key: 'hub',         label: 'Active Hub',   icon: '🟣', desc: 'Active ACM Hub — manages all spoke clusters' },
+    'hub-passive': { key: 'hub-passive', label: 'Passive Hub',  icon: '🔵', desc: 'Passive ACM Hub (Disaster Recovery standby)' },
+    'primary':     { key: 'primary',     label: 'Primary C1',   icon: '🟢', desc: 'Primary managed cluster (C1)' },
+    'secondary':   { key: 'secondary',   label: 'Secondary C2', icon: '🟡', desc: 'Secondary managed cluster (C2)' },
+    'unknown':     { key: 'unknown',     label: 'Cluster',      icon: '⚪', desc: 'Role not detected' },
   };
   if (cluster.role && roleMap[cluster.role]) return roleMap[cluster.role];
 
-  const name = (cluster.name || "").toLowerCase();
-  const url  = (cluster.url  || "").toLowerCase();
-  const combined = name + " " + url;
+  const name = (cluster.name || '').toLowerCase();
+  const url  = (cluster.url  || '').toLowerCase();
+  const combined = name + ' ' + url;
 
   // Hub / ACM patterns
   if (/hub[_-]?1|hub[_-]?one|passive|hub_1/.test(combined))
-    return { key: "hub-passive", label: "Passive Hub", icon: "🔵", desc: "Passive ACM Hub (Disaster Recovery standby)" };
+    return { key: 'hub-passive', label: 'Passive Hub', icon: '🔵', desc: 'Passive ACM Hub (Disaster Recovery standby)' };
 
   if (/hub/.test(combined))
-    return { key: "hub", label: "Active Hub", icon: "🟣", desc: "Active ACM Hub — manages all spoke clusters" };
+    return { key: 'hub', label: 'Active Hub', icon: '🟣', desc: 'Active ACM Hub — manages all spoke clusters' };
 
   // Managed cluster patterns
   if (/c1|primary|vmware.?one|cluster.?1|spoke.?1/.test(combined))
-    return { key: "primary", label: "Primary C1", icon: "🟢", desc: "Primary managed cluster (C1)" };
+    return { key: 'primary', label: 'Primary C1', icon: '🟢', desc: 'Primary managed cluster (C1)' };
 
   if (/c2|secondary|vmware.?two|cluster.?2|spoke.?2/.test(combined))
-    return { key: "secondary", label: "Secondary C2", icon: "🟡", desc: "Secondary managed cluster (C2)" };
+    return { key: 'secondary', label: 'Secondary C2', icon: '🟡', desc: 'Secondary managed cluster (C2)' };
 
   // Fallback: try to guess from URL segment count / patterns
   if (/spoke|managed|worker/.test(combined))
-    return { key: "primary", label: "Spoke", icon: "🟢", desc: "Managed spoke cluster" };
+    return { key: 'primary', label: 'Spoke', icon: '🟢', desc: 'Managed spoke cluster' };
 
-  return { key: "unknown", label: "Cluster", icon: "⚪", desc: "Role not detected — check cluster name or URL" };
+  return { key: 'unknown', label: 'Cluster', icon: '⚪', desc: 'Role not detected — check cluster name or URL' };
 }
 
 // ── Tab switching ─────────────────────────────────────
-document.querySelectorAll(".tab").forEach(tab => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-    tab.classList.add("active");
-    document.getElementById(`tab-${tab.dataset.tab}`).classList.add("active");
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
   });
 });
 
 // ── Get login tooltip based on cluster role ──────────
 function getLoginTooltip(role) {
   const tooltips = {
-    "hub": '<div class="login-tooltip login-tooltip-hub">🟣 Active ACM Hub<br/>Manages all spoke clusters</div>',
-    "hub-passive": '<div class="login-tooltip login-tooltip-hub-passive">🔵 Passive Hub (DR)<br/>Standby ACM Hub for disaster recovery</div>',
-    "primary": '<div class="login-tooltip login-tooltip-primary">🟢 Primary Cluster (C1)<br/>Active production cluster</div>',
-    "secondary": '<div class="login-tooltip login-tooltip-secondary">🟡 Secondary Cluster (C2)<br/>DR standby - may be read-only</div>',
-    "unknown": ''
+    'hub': '<div class="login-tooltip login-tooltip-hub">🟣 Active ACM Hub<br/>Manages all spoke clusters</div>',
+    'hub-passive': '<div class="login-tooltip login-tooltip-hub-passive">🔵 Passive Hub (DR)<br/>Standby ACM Hub for disaster recovery</div>',
+    'primary': '<div class="login-tooltip login-tooltip-primary">🟢 Primary Cluster (C1)<br/>Active production cluster</div>',
+    'secondary': '<div class="login-tooltip login-tooltip-secondary">🟡 Secondary Cluster (C2)<br/>DR standby - may be read-only</div>',
+    'unknown': ''
   };
   return tooltips[role.key] || '';
 }
@@ -260,7 +260,7 @@ function groupClusters(clusters) {
   const ungrouped = [];  // clusters with no group field
 
   clusters.forEach((cluster, index) => {
-    const g = (cluster.group || "").trim();
+    const g = (cluster.group || '').trim();
     if (!g) {
       ungrouped.push({ cluster, index });
     } else {
@@ -277,9 +277,9 @@ function groupClusters(clusters) {
 
 // ── Render a single cluster card ──────────────────────
 function renderClusterCard(cluster, index, clusters) {
-  const div = document.createElement("div");
-  div.className = "cluster-item";
-  div.setAttribute("draggable", "true");
+  const div = document.createElement('div');
+  div.className = 'cluster-item';
+  div.setAttribute('draggable', 'true');
   div.dataset.index = index;
   const role = detectRole(cluster);
 
@@ -318,9 +318,9 @@ function renderClusterCard(cluster, index, clusters) {
   }
 
   // Build platform badge HTML
-  const type = cluster.type || "openshift";
-  const platformIcon = type === "vsphere" ? "🔷" : "🔴";
-  const platformLabel = type === "vsphere" ? "vSphere" : "OpenShift";
+  const type = cluster.type || 'openshift';
+  const platformIcon = type === 'vsphere' ? '🔷' : '🔴';
+  const platformLabel = type === 'vsphere' ? 'vSphere' : 'OpenShift';
   const platformBadgeHTML = `<span class="badge ${type}" title="Platform: ${platformLabel}">${platformIcon} ${platformLabel}</span>`;
 
   // Pin star icon
@@ -356,6 +356,8 @@ function renderClusterCard(cluster, index, clusters) {
     <div class="cluster-actions">
       <button class="btn btn-primary" data-index="${index}">Login</button>
       <button class="btn-icon" data-index="${index}" data-action="show-password" title="Show credentials">👁️</button>
+      ${cluster.kubeconfig ? `<button class="btn-icon" data-index="${index}" data-action="download-kubeconfig" title="Download kubeconfig">📥</button>` : ''}
+      ${cluster.kubeconfigUrl ? `<button class="btn-icon" data-index="${index}" data-action="open-kubeconfig" title="Open kubeconfig in browser">🔗</button>` : ''}
       <button class="btn-icon" data-index="${index}" data-action="menu" title="More actions">⋮</button>
       <button class="btn-icon" data-index="${index}" data-action="edit" title="Edit cluster">✏️</button>
       <button class="btn-icon" data-index="${index}" data-action="delete" title="Remove cluster">✕</button>
@@ -363,46 +365,50 @@ function renderClusterCard(cluster, index, clusters) {
   `;
 
   // Checkbox event
-  div.querySelector(".cluster-checkbox").addEventListener("change", updateBulkActionsBar);
+  div.querySelector('.cluster-checkbox').addEventListener('change', updateBulkActionsBar);
 
   // Pin button event
-  div.querySelector(".btn-pin").addEventListener("click", () => {
+  div.querySelector('.btn-pin').addEventListener('click', () => {
     clusters[index].pinned = !clusters[index].pinned;
     chrome.storage.local.set({ clusters }, () => {
       loadClusters();
-      showStatus("success", clusters[index].pinned ? `⭐ ${cluster.name} pinned` : `✅ ${cluster.name} unpinned`);
+      showStatus('success', clusters[index].pinned ? `⭐ ${cluster.name} pinned` : `✅ ${cluster.name} unpinned`);
     });
   });
 
   // Login button
-  div.querySelector(".btn-primary").addEventListener("click", (e) => {
+  div.querySelector('.btn-primary').addEventListener('click', (e) => {
     const btn = e.currentTarget;
     if (btn.disabled) return; // Prevent double-click
     btn.disabled = true;
     const originalText = btn.textContent;
-    btn.textContent = "...";
+    btn.textContent = '...';
 
     try {
       loginToCluster(cluster, btn);
     } catch (error) {
-      console.error("[Login Error]", error);
+      console.error('[Login Error]', error);
       btn.disabled = false;
       btn.textContent = originalText;
-      showStatus("error", "Failed to start login");
+      showStatus('error', 'Failed to start login');
     }
   });
 
   // Icon button actions
-  div.querySelectorAll(".btn-icon").forEach(btn => {
-    btn.addEventListener("click", (e) => {
+  div.querySelectorAll('.btn-icon').forEach(btn => {
+    btn.addEventListener('click', (e) => {
       const action = e.currentTarget.dataset.action;
-      if (action === "show-password") {
+      if (action === 'show-password') {
         showPasswordModal(cluster);
-      } else if (action === "menu") {
+      } else if (action === 'download-kubeconfig') {
+        downloadKubeconfig(cluster);
+      } else if (action === 'open-kubeconfig') {
+        openKubeconfigUrl(cluster);
+      } else if (action === 'menu') {
         showMoveToGroupMenu(e.currentTarget, cluster, index, clusters, allGroups);
-      } else if (action === "edit") {
+      } else if (action === 'edit') {
         editCluster(index, cluster, clusters);
-      } else if (action === "delete") {
+      } else if (action === 'delete') {
         clusters.splice(index, 1);
         chrome.storage.local.set({ clusters }, loadClusters);
       }
@@ -410,10 +416,10 @@ function renderClusterCard(cluster, index, clusters) {
   });
 
   // Drag and drop events
-  div.addEventListener("dragstart", handleDragStart);
-  div.addEventListener("dragover", handleDragOver);
-  div.addEventListener("drop", handleDrop);
-  div.addEventListener("dragend", handleDragEnd);
+  div.addEventListener('dragstart', handleDragStart);
+  div.addEventListener('dragover', handleDragOver);
+  div.addEventListener('drop', handleDrop);
+  div.addEventListener('dragend', handleDragEnd);
 
   return div;
 }
@@ -421,19 +427,19 @@ function renderClusterCard(cluster, index, clusters) {
 // ── Show Move to Group menu ──────────────────────────
 function showMoveToGroupMenu(button, cluster, index, clusters, allGroups) {
   // Remove any existing menu
-  const existingMenu = document.getElementById("move-menu");
+  const existingMenu = document.getElementById('move-menu');
   if (existingMenu) existingMenu.remove();
 
   // Create menu
-  const menu = document.createElement("div");
-  menu.id = "move-menu";
-  menu.className = "context-menu";
+  const menu = document.createElement('div');
+  menu.id = 'move-menu';
+  menu.className = 'context-menu';
 
   let menuHTML = '<div class="context-menu-header">Move to Group</div>';
 
   // Add "Remove from group" option if cluster is in a group
   if (cluster.group) {
-    menuHTML += `<div class="context-menu-item" data-action="remove-group">🚫 Remove from Group</div>`;
+    menuHTML += '<div class="context-menu-item" data-action="remove-group">🚫 Remove from Group</div>';
   }
 
   // Add existing groups
@@ -456,35 +462,35 @@ function showMoveToGroupMenu(button, cluster, index, clusters, allGroups) {
 
   // Position menu near the button
   const rect = button.getBoundingClientRect();
-  menu.style.position = "fixed";
+  menu.style.position = 'fixed';
   menu.style.top = `${rect.bottom + 4}px`;
   menu.style.right = `${window.innerWidth - rect.right}px`;
-  menu.style.zIndex = "10000";
+  menu.style.zIndex = '10000';
 
   // Handle clicks
-  menu.querySelectorAll(".context-menu-item").forEach(item => {
-    item.addEventListener("click", () => {
+  menu.querySelectorAll('.context-menu-item').forEach(item => {
+    item.addEventListener('click', () => {
       const action = item.dataset.action;
       const groupName = item.dataset.group;
 
-      if (action === "remove-group") {
+      if (action === 'remove-group') {
         // Remove from group
         delete clusters[index].group;
         chrome.storage.local.set({ clusters }, () => {
           loadClusters();
-          showStatus("success", `✅ ${cluster.name} removed from group`);
+          showStatus('success', `✅ ${cluster.name} removed from group`);
         });
-      } else if (action === "new-group") {
+      } else if (action === 'new-group') {
         // Prompt for new group name
-        const newGroupName = prompt("Enter new group name:", "");
+        const newGroupName = prompt('Enter new group name:', '');
         if (newGroupName && newGroupName.trim()) {
           clusters[index].group = newGroupName.trim();
           chrome.storage.local.set({ clusters }, () => {
             loadClusters();
-            showStatus("success", `✅ ${cluster.name} moved to group "${newGroupName.trim()}"`);
+            showStatus('success', `✅ ${cluster.name} moved to group "${newGroupName.trim()}"`);
           });
         }
-      } else if (action === "share-cluster") {
+      } else if (action === 'share-cluster') {
         // Share single cluster
         menu.remove();
         shareCluster(cluster);
@@ -494,7 +500,7 @@ function showMoveToGroupMenu(button, cluster, index, clusters, allGroups) {
         clusters[index].group = groupName;
         chrome.storage.local.set({ clusters }, () => {
           loadClusters();
-          showStatus("success", `✅ ${cluster.name} moved to group "${groupName}"`);
+          showStatus('success', `✅ ${cluster.name} moved to group "${groupName}"`);
         });
       }
 
@@ -507,17 +513,17 @@ function showMoveToGroupMenu(button, cluster, index, clusters, allGroups) {
     const closeHandler = (e) => {
       if (!menu.contains(e.target) && e.target !== button) {
         menu.remove();
-        document.removeEventListener("click", closeHandler);
+        document.removeEventListener('click', closeHandler);
       }
     };
-    document.addEventListener("click", closeHandler);
+    document.addEventListener('click', closeHandler);
   }, 0);
 }
 
 // ── Share single cluster ──────────────────────────────
 function shareCluster(cluster) {
   // Show password inclusion modal
-  const modal = document.createElement("div");
+  const modal = document.createElement('div');
   modal.style.cssText = `
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.85); z-index: 9999;
@@ -566,19 +572,19 @@ function shareCluster(cluster) {
   document.body.appendChild(modal);
 
   // Confirm share
-  document.getElementById("confirm-share-single-btn").addEventListener("click", () => {
-    const includePassword = document.getElementById("share-single-password").checked;
+  document.getElementById('confirm-share-single-btn').addEventListener('click', () => {
+    const includePassword = document.getElementById('share-single-password').checked;
     modal.remove();
 
     // Create export data for single cluster
     const exportData = {
-      version: "2.4.0",
+      version: '3.2.0',
       timestamp: Date.now(),
       clusters: [{
         name: cluster.name,
         url: cluster.url,
         user: cluster.user,
-        type: cluster.type || "openshift"
+        type: cluster.type || 'openshift'
       }]
     };
 
@@ -588,6 +594,7 @@ function shareCluster(cluster) {
 
     if (cluster.group) exportData.clusters[0].group = cluster.group;
     if (cluster.role) exportData.clusters[0].role = cluster.role;
+    if (cluster.kubeconfigUrl) exportData.clusters[0].kubeconfigUrl = cluster.kubeconfigUrl;
 
     // Encode to base64
     const jsonStr = JSON.stringify(exportData);
@@ -599,12 +606,12 @@ function shareCluster(cluster) {
   });
 
   // Cancel share
-  document.getElementById("cancel-share-single-btn").addEventListener("click", () => {
+  document.getElementById('cancel-share-single-btn').addEventListener('click', () => {
     modal.remove();
   });
 
   // Close on overlay click
-  modal.addEventListener("click", (e) => {
+  modal.addEventListener('click', (e) => {
     if (e.target === modal) {
       modal.remove();
     }
@@ -614,18 +621,18 @@ function shareCluster(cluster) {
 // ── Edit cluster ──────────────────────────────────────
 function editCluster(index, cluster, clusters) {
   // Hide add form if open
-  document.getElementById("add-form").style.display = "none";
-  document.getElementById("add-btn").style.display = "none";
-  if (document.getElementById("quick-import-btn")) {
-    document.getElementById("quick-import-btn").style.display = "none";
+  document.getElementById('add-form').style.display = 'none';
+  document.getElementById('add-btn').style.display = 'none';
+  if (document.getElementById('quick-import-btn')) {
+    document.getElementById('quick-import-btn').style.display = 'none';
   }
 
   // Create or show edit form
-  let editForm = document.getElementById("edit-form");
+  let editForm = document.getElementById('edit-form');
   if (!editForm) {
-    editForm = document.createElement("div");
-    editForm.id = "edit-form";
-    editForm.className = "form";
+    editForm = document.createElement('div');
+    editForm.id = 'edit-form';
+    editForm.className = 'form';
     editForm.innerHTML = `
       <div style="font-size:13px;font-weight:bold;margin-bottom:12px;color:#90b8f0;">✏️ Edit Cluster</div>
       <label>Cluster Name</label>
@@ -666,27 +673,27 @@ function editCluster(index, cluster, clusters) {
         <button class="cancel-btn" id="edit-cancel-btn">Cancel</button>
       </div>
     `;
-    document.getElementById("cluster-list").parentNode.appendChild(editForm);
+    document.getElementById('cluster-list').parentNode.appendChild(editForm);
   }
 
   // Pre-fill form with existing values
-  document.getElementById("e-name").value = cluster.name || "";
-  document.getElementById("e-url").value = cluster.url || "";
-  document.getElementById("e-user").value = cluster.user || "";
-  document.getElementById("e-password").value = cluster.password || "";
-  document.getElementById("e-type").value = cluster.type || "openshift";
-  document.getElementById("e-role").value = cluster.role || "";
-  document.getElementById("e-group").value = cluster.group || "";
-  document.getElementById("e-tags").value = (cluster.tags || []).join(", ");
-  document.getElementById("e-notes").value = cluster.notes || "";
+  document.getElementById('e-name').value = cluster.name || '';
+  document.getElementById('e-url').value = cluster.url || '';
+  document.getElementById('e-user').value = cluster.user || '';
+  document.getElementById('e-password').value = cluster.password || '';
+  document.getElementById('e-type').value = cluster.type || 'openshift';
+  document.getElementById('e-role').value = cluster.role || '';
+  document.getElementById('e-group').value = cluster.group || '';
+  document.getElementById('e-tags').value = (cluster.tags || []).join(', ');
+  document.getElementById('e-notes').value = cluster.notes || '';
 
   // Update role options based on platform type
   const updateEditRoleOptions = () => {
-    const type = document.getElementById("e-type").value;
-    const roleSelect = document.getElementById("e-role");
+    const type = document.getElementById('e-type').value;
+    const roleSelect = document.getElementById('e-role');
     const currentRole = roleSelect.value;
 
-    if (type === "vsphere") {
+    if (type === 'vsphere') {
       roleSelect.innerHTML = `
         <option value="">Auto-detect</option>
         <option value="vcenter">vCenter Server</option>
@@ -709,75 +716,75 @@ function editCluster(index, cluster, clusters) {
   };
 
   // Set up type change listener
-  const typeSelect = document.getElementById("e-type");
-  typeSelect.addEventListener("change", updateEditRoleOptions);
+  const typeSelect = document.getElementById('e-type');
+  typeSelect.addEventListener('change', updateEditRoleOptions);
 
   // Initial role options setup
   updateEditRoleOptions();
 
-  editForm.style.display = "block";
+  editForm.style.display = 'block';
 
   // Add toggle password functionality
-  const togglePasswordBtn = document.getElementById("e-toggle-password-btn");
-  const passwordField = document.getElementById("e-password");
+  const togglePasswordBtn = document.getElementById('e-toggle-password-btn');
+  const passwordField = document.getElementById('e-password');
   if (togglePasswordBtn && passwordField) {
     // Remove old event listeners
     togglePasswordBtn.replaceWith(togglePasswordBtn.cloneNode(true));
-    const newToggleBtn = document.getElementById("e-toggle-password-btn");
-    newToggleBtn.addEventListener("click", () => {
-      if (passwordField.type === "password") {
-        passwordField.type = "text";
-        newToggleBtn.textContent = "🙈";
-        newToggleBtn.style.color = "#ffd700";
+    const newToggleBtn = document.getElementById('e-toggle-password-btn');
+    newToggleBtn.addEventListener('click', () => {
+      if (passwordField.type === 'password') {
+        passwordField.type = 'text';
+        newToggleBtn.textContent = '🙈';
+        newToggleBtn.style.color = '#ffd700';
       } else {
-        passwordField.type = "password";
-        newToggleBtn.textContent = "👁️";
-        newToggleBtn.style.color = "#888";
+        passwordField.type = 'password';
+        newToggleBtn.textContent = '👁️';
+        newToggleBtn.style.color = '#888';
       }
     });
   }
 
   // Scroll to form
-  editForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  editForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   // Save handler
-  const saveBtn = document.getElementById("edit-save-btn");
+  const saveBtn = document.getElementById('edit-save-btn');
   saveBtn.replaceWith(saveBtn.cloneNode(true)); // Remove old event listeners
-  document.getElementById("edit-save-btn").addEventListener("click", () => {
-    const name = document.getElementById("e-name").value.trim();
-    const rawUrl = document.getElementById("e-url").value.trim();
-    const user = document.getElementById("e-user").value.trim();
-    const password = document.getElementById("e-password").value;
-    const type = document.getElementById("e-type").value || "openshift";
-    const role = document.getElementById("e-role").value.trim();
-    const group = document.getElementById("e-group").value.trim();
-    const tagsInput = document.getElementById("e-tags").value.trim();
-    const notes = document.getElementById("e-notes").value.trim();
+  document.getElementById('edit-save-btn').addEventListener('click', () => {
+    const name = document.getElementById('e-name').value.trim();
+    const rawUrl = document.getElementById('e-url').value.trim();
+    const user = document.getElementById('e-user').value.trim();
+    const password = document.getElementById('e-password').value;
+    const type = document.getElementById('e-type').value || 'openshift';
+    const role = document.getElementById('e-role').value.trim();
+    const group = document.getElementById('e-group').value.trim();
+    const tagsInput = document.getElementById('e-tags').value.trim();
+    const notes = document.getElementById('e-notes').value.trim();
 
     let url = normalizeURL(rawUrl);
 
     // Normalize vSphere URLs to ensure they point to /ui/
-    if (type === "vsphere") {
+    if (type === 'vsphere') {
       try {
         const urlObj = new URL(url);
-        if (urlObj.pathname === "/" || urlObj.pathname === "") {
-          urlObj.pathname = "/ui/";
+        if (urlObj.pathname === '/' || urlObj.pathname === '') {
+          urlObj.pathname = '/ui/';
           url = urlObj.toString();
-        } else if (urlObj.pathname === "/ui") {
-          urlObj.pathname = "/ui/";
+        } else if (urlObj.pathname === '/ui') {
+          urlObj.pathname = '/ui/';
           url = urlObj.toString();
         }
       } catch (e) {
-        console.error("Error normalizing vSphere URL:", e);
+        console.error('Error normalizing vSphere URL:', e);
       }
     }
 
     if (!name || !url || !user || !password) {
-      showStatus("error", "❌ All fields are required");
+      showStatus('error', '❌ All fields are required');
       return;
     }
-    if (!url.startsWith("http")) {
-      showStatus("error", "❌ URL must start with https://");
+    if (!url.startsWith('http')) {
+      showStatus('error', '❌ URL must start with https://');
       return;
     }
 
@@ -803,36 +810,36 @@ function editCluster(index, cluster, clusters) {
     else delete clusters[index].notes;
 
     chrome.storage.local.set({ clusters }, () => {
-      editForm.style.display = "none";
-      document.getElementById("add-btn").style.display = "block";
-      if (document.getElementById("quick-import-btn")) {
-        document.getElementById("quick-import-btn").style.display = "block";
+      editForm.style.display = 'none';
+      document.getElementById('add-btn').style.display = 'block';
+      if (document.getElementById('quick-import-btn')) {
+        document.getElementById('quick-import-btn').style.display = 'block';
       }
       loadClusters();
-      showStatus("success", `✅ ${name} updated!`);
+      showStatus('success', `✅ ${name} updated!`);
     });
   });
 
   // Cancel handler
-  const cancelBtn = document.getElementById("edit-cancel-btn");
+  const cancelBtn = document.getElementById('edit-cancel-btn');
   cancelBtn.replaceWith(cancelBtn.cloneNode(true)); // Remove old event listeners
-  document.getElementById("edit-cancel-btn").addEventListener("click", () => {
-    editForm.style.display = "none";
-    document.getElementById("add-btn").style.display = "block";
-      if (document.getElementById("quick-import-btn")) {
-        document.getElementById("quick-import-btn").style.display = "block";
+  document.getElementById('edit-cancel-btn').addEventListener('click', () => {
+    editForm.style.display = 'none';
+    document.getElementById('add-btn').style.display = 'block';
+      if (document.getElementById('quick-import-btn')) {
+        document.getElementById('quick-import-btn').style.display = 'block';
       }
   });
 }
 
 // ── Load and render clusters with grouping ────────────
 function loadClusters() {
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
-    const list = document.getElementById("cluster-list");
-    list.innerHTML = "";
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
+    const list = document.getElementById('cluster-list');
+    list.innerHTML = '';
 
     if (clusters.length === 0) {
-      list.innerHTML = `<div class="no-clusters">No clusters yet.<br>Click below to add one!</div>`;
+      list.innerHTML = '<div class="no-clusters">No clusters yet.<br>Click below to add one!</div>';
       return;
     }
 
@@ -856,19 +863,19 @@ function loadClusters() {
       }
 
       // Multiple clusters sharing same base domain → render as RDR group
-      const groupDiv = document.createElement("div");
-      groupDiv.className = "cluster-group";
-      groupDiv.setAttribute("draggable", "true");
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'cluster-group';
+      groupDiv.setAttribute('draggable', 'true');
       groupDiv.dataset.groupIndex = groups.indexOf(group);
 
       // Group label = Jenkins job ID
-      const groupLabel = group.groupId || "RDR Group";
-      const rolesSummary = group.clusters.map(({cluster}) => detectRole(cluster).icon).join(" ");
+      const groupLabel = group.groupId || 'RDR Group';
+      const rolesSummary = group.clusters.map(({cluster}) => detectRole(cluster).icon).join(' ');
       const groupColor = getGroupColor(groupLabel);
 
       // Header — click to expand/collapse, Login All button
-      const header = document.createElement("div");
-      header.className = "group-header";
+      const header = document.createElement('div');
+      header.className = 'group-header';
       header.innerHTML = `
         <div class="group-header-left">
           <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
@@ -887,47 +894,47 @@ function loadClusters() {
       `;
 
       // Cluster cards container (collapsed by default)
-      const body = document.createElement("div");
-      body.className = "group-body collapsed";
+      const body = document.createElement('div');
+      body.className = 'group-body collapsed';
 
       group.clusters.forEach(({ cluster, index }) => {
         body.appendChild(renderClusterCard(cluster, index, clusters));
       });
 
       // Toggle expand/collapse on header click
-      header.addEventListener("click", (e) => {
-        if (e.target.closest(".btn-login-all")) return; // don't toggle when clicking Login All
-        if (e.target.closest(".share-group-btn")) return; // don't toggle when clicking Share
-        if (e.target.closest(".delete-group-btn")) return; // don't toggle when clicking Delete
-        const collapsed = body.classList.toggle("collapsed");
-        header.querySelector(".group-chevron").textContent = collapsed ? "▶" : "▼";
+      header.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-login-all')) return; // don't toggle when clicking Login All
+        if (e.target.closest('.share-group-btn')) return; // don't toggle when clicking Share
+        if (e.target.closest('.delete-group-btn')) return; // don't toggle when clicking Delete
+        const collapsed = body.classList.toggle('collapsed');
+        header.querySelector('.group-chevron').textContent = collapsed ? '▶' : '▼';
       });
 
       // Allow dropping clusters onto group header to move them to this group
-      header.addEventListener("dragover", (e) => {
+      header.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (draggedElement && draggedElement.classList.contains("cluster-item") && !draggedElement.closest(".cluster-group") !== groupDiv) {
-          header.classList.add("drag-over");
+        if (draggedElement && draggedElement.classList.contains('cluster-item') && !draggedElement.closest('.cluster-group') !== groupDiv) {
+          header.classList.add('drag-over');
         }
       });
 
-      header.addEventListener("dragleave", (e) => {
+      header.addEventListener('dragleave', (e) => {
         if (e.target === header || header.contains(e.relatedTarget)) return;
-        header.classList.remove("drag-over");
+        header.classList.remove('drag-over');
       });
 
-      header.addEventListener("drop", (e) => {
+      header.addEventListener('drop', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        header.classList.remove("drag-over");
+        header.classList.remove('drag-over');
 
-        if (!draggedElement || !draggedElement.classList.contains("cluster-item")) return;
+        if (!draggedElement || !draggedElement.classList.contains('cluster-item')) return;
 
         const droppedIndex = parseInt(draggedElement.dataset.index);
         if (isNaN(droppedIndex)) return;
 
-        chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+        chrome.storage.local.get('clusters', ({ clusters = [] }) => {
           if (!clusters[droppedIndex]) return;
 
           // Move cluster to this group
@@ -935,17 +942,17 @@ function loadClusters() {
 
           chrome.storage.local.set({ clusters }, () => {
             loadClusters();
-            showStatus("success", `✅ Moved to group "${group.groupId}"`);
+            showStatus('success', `✅ Moved to group "${group.groupId}"`);
           });
         });
       });
 
       // Share Group — generate shareable link for this group
-      header.querySelector(".share-group-btn").addEventListener("click", (e) => {
+      header.querySelector('.share-group-btn').addEventListener('click', (e) => {
         e.stopPropagation();
 
         // Show password inclusion modal
-        const modal = document.createElement("div");
+        const modal = document.createElement('div');
         modal.style.cssText = `
           position: fixed; top: 0; left: 0; right: 0; bottom: 0;
           background: rgba(15, 23, 42, 0.85);
@@ -1052,50 +1059,50 @@ function loadClusters() {
         document.body.appendChild(modal);
 
         // Close button (×)
-        const closeBtn = document.getElementById("close-share-modal");
+        const closeBtn = document.getElementById('close-share-modal');
         if (closeBtn) {
-          closeBtn.addEventListener("click", () => modal.remove());
-          closeBtn.addEventListener("mouseenter", () => {
-            closeBtn.style.background = "rgba(255,255,255,0.3)";
-            closeBtn.style.transform = "scale(1.1)";
+          closeBtn.addEventListener('click', () => modal.remove());
+          closeBtn.addEventListener('mouseenter', () => {
+            closeBtn.style.background = 'rgba(255,255,255,0.3)';
+            closeBtn.style.transform = 'scale(1.1)';
           });
-          closeBtn.addEventListener("mouseleave", () => {
-            closeBtn.style.background = "rgba(255,255,255,0.2)";
-            closeBtn.style.transform = "scale(1)";
+          closeBtn.addEventListener('mouseleave', () => {
+            closeBtn.style.background = 'rgba(255,255,255,0.2)';
+            closeBtn.style.transform = 'scale(1)';
           });
         }
 
         // Get button elements
-        const confirmBtn = document.getElementById("confirm-share-group-btn");
-        const cancelBtn = document.getElementById("cancel-share-group-btn");
+        const confirmBtn = document.getElementById('confirm-share-group-btn');
+        const cancelBtn = document.getElementById('cancel-share-group-btn');
 
         // Confirm button hover effects
-        confirmBtn.addEventListener("mouseenter", () => {
-          confirmBtn.style.background = "linear-gradient(135deg, #B91C1C 0%, #991B1B 100%)";
-          confirmBtn.style.boxShadow = "0 4px 16px rgba(220, 38, 38, 0.35)";
-          confirmBtn.style.transform = "translateY(-1px)";
+        confirmBtn.addEventListener('mouseenter', () => {
+          confirmBtn.style.background = 'linear-gradient(135deg, #B91C1C 0%, #991B1B 100%)';
+          confirmBtn.style.boxShadow = '0 4px 16px rgba(220, 38, 38, 0.35)';
+          confirmBtn.style.transform = 'translateY(-1px)';
         });
-        confirmBtn.addEventListener("mouseleave", () => {
-          confirmBtn.style.background = "linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)";
-          confirmBtn.style.boxShadow = "0 2px 8px rgba(220, 38, 38, 0.25)";
-          confirmBtn.style.transform = "translateY(0)";
+        confirmBtn.addEventListener('mouseleave', () => {
+          confirmBtn.style.background = 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)';
+          confirmBtn.style.boxShadow = '0 2px 8px rgba(220, 38, 38, 0.25)';
+          confirmBtn.style.transform = 'translateY(0)';
         });
 
         // Confirm share
-        confirmBtn.addEventListener("click", () => {
-          const includePasswords = document.getElementById("share-group-passwords").checked;
+        confirmBtn.addEventListener('click', () => {
+          const includePasswords = document.getElementById('share-group-passwords').checked;
           modal.remove();
 
           // Create export data for this group
           const exportData = {
-            version: "2.4.0",
+            version: '3.2.0',
             timestamp: Date.now(),
             clusters: group.clusters.map(({ cluster }) => {
               const exported = {
                 name: cluster.name,
                 url: cluster.url,
                 user: cluster.user,
-                type: cluster.type || "openshift"
+                type: cluster.type || 'openshift'
               };
 
               if (includePasswords) {
@@ -1104,6 +1111,7 @@ function loadClusters() {
 
               if (cluster.group) exported.group = cluster.group;
               if (cluster.role) exported.role = cluster.role;
+              if (cluster.kubeconfigUrl) exported.kubeconfigUrl = cluster.kubeconfigUrl;
 
               return exported;
             })
@@ -1119,24 +1127,24 @@ function loadClusters() {
         });
 
         // Cancel share
-        cancelBtn.addEventListener("click", () => {
+        cancelBtn.addEventListener('click', () => {
           modal.remove();
         });
 
         // Cancel button hover effects
-        cancelBtn.addEventListener("mouseenter", () => {
-          cancelBtn.style.background = "#f8fafc";
-          cancelBtn.style.color = "#1e293b";
-          cancelBtn.style.borderColor = "#cbd5e1";
+        cancelBtn.addEventListener('mouseenter', () => {
+          cancelBtn.style.background = '#f8fafc';
+          cancelBtn.style.color = '#1e293b';
+          cancelBtn.style.borderColor = '#cbd5e1';
         });
-        cancelBtn.addEventListener("mouseleave", () => {
-          cancelBtn.style.background = "white";
-          cancelBtn.style.color = "#64748b";
-          cancelBtn.style.borderColor = "#e2e8f0";
+        cancelBtn.addEventListener('mouseleave', () => {
+          cancelBtn.style.background = 'white';
+          cancelBtn.style.color = '#64748b';
+          cancelBtn.style.borderColor = '#e2e8f0';
         });
 
         // Close on overlay click
-        modal.addEventListener("click", (e) => {
+        modal.addEventListener('click', (e) => {
           if (e.target === modal) {
             modal.remove();
           }
@@ -1144,26 +1152,26 @@ function loadClusters() {
 
         // ESC key to close
         const escHandler = (e) => {
-          if (e.key === "Escape") {
+          if (e.key === 'Escape') {
             modal.remove();
-            document.removeEventListener("keydown", escHandler);
+            document.removeEventListener('keydown', escHandler);
           }
         };
-        document.addEventListener("keydown", escHandler);
+        document.addEventListener('keydown', escHandler);
       });
 
       // Delete Group — delete all clusters in this group
-      header.querySelector(".delete-group-btn").addEventListener("click", (e) => {
+      header.querySelector('.delete-group-btn').addEventListener('click', (e) => {
         e.stopPropagation();
 
-        const groupName = group.groupId || "this group";
+        const groupName = group.groupId || 'this group';
         const clusterCount = group.clusters.length;
 
         if (!confirm(`Delete entire group "${groupName}"?\n\nThis will permanently remove ${clusterCount} cluster${clusterCount !== 1 ? 's' : ''} from this group.`)) {
           return;
         }
 
-        chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+        chrome.storage.local.get('clusters', ({ clusters = [] }) => {
           // Get indices of clusters in this group
           const indicesToDelete = group.clusters.map(({ index }) => index).sort((a, b) => b - a);
 
@@ -1174,27 +1182,27 @@ function loadClusters() {
 
           chrome.storage.local.set({ clusters }, () => {
             loadClusters();
-            showStatus("success", `✅ Deleted group "${groupName}" (${clusterCount} cluster${clusterCount !== 1 ? 's' : ''})`);
+            showStatus('success', `✅ Deleted group "${groupName}" (${clusterCount} cluster${clusterCount !== 1 ? 's' : ''})`);
           });
         });
       });
 
       // Login All — login to every cluster in the group
-      header.querySelector(".btn-login-all").addEventListener("click", (e) => {
+      header.querySelector('.btn-login-all').addEventListener('click', (e) => {
         e.stopPropagation();
         const btn = e.currentTarget;
 
         // Prevent duplicate clicks
-        if (btn.dataset.logging === "true") return;
-        btn.dataset.logging = "true";
+        if (btn.dataset.logging === 'true') return;
+        btn.dataset.logging = 'true';
 
         btn.disabled = true;
-        btn.textContent = "⏳ Logging in...";
+        btn.textContent = '⏳ Logging in...';
 
-        showStatus("info", `Opening ${group.clusters.length} clusters...`);
+        showStatus('info', `Opening ${group.clusters.length} clusters...`);
 
         // Get tab opening settings
-        chrome.storage.local.get("settings", ({ settings = {} }) => {
+        chrome.storage.local.get('settings', ({ settings = {} }) => {
           const openInBackground = settings.backgroundTabs !== false; // default true
           const sequential = settings.sequentialTabs === true; // default false (parallel)
 
@@ -1219,20 +1227,20 @@ function loadClusters() {
           }
 
           // Show success message
-          showStatus("success", `✅ Opening all ${group.clusters.length} clusters!`);
+          showStatus('success', `✅ Opening all ${group.clusters.length} clusters!`);
 
           // Reset after delay
           setTimeout(() => {
-            btn.dataset.logging = "false";
+            btn.dataset.logging = 'false';
           }, 2000);
         });
       });
 
       // Drag and drop events for groups
-      groupDiv.addEventListener("dragstart", handleGroupDragStart);
-      groupDiv.addEventListener("dragover", handleGroupDragOver);
-      groupDiv.addEventListener("drop", handleGroupDrop);
-      groupDiv.addEventListener("dragend", handleGroupDragEnd);
+      groupDiv.addEventListener('dragstart', handleGroupDragStart);
+      groupDiv.addEventListener('dragover', handleGroupDragOver);
+      groupDiv.addEventListener('drop', handleGroupDrop);
+      groupDiv.addEventListener('dragend', handleGroupDragEnd);
 
       groupDiv.appendChild(header);
       groupDiv.appendChild(body);
@@ -1244,20 +1252,20 @@ function loadClusters() {
 // ── Login to cluster ──────────────────────────────────
 function loginToCluster(cluster, btn, forceNewTab = false) {
   if (!cluster || !cluster.url) {
-    showStatus("error", "❌ Invalid cluster configuration");
+    showStatus('error', '❌ Invalid cluster configuration');
     return;
   }
 
   try {
-    showStatus("info", `🔄 Opening ${cluster.name}...`);
+    showStatus('info', `🔄 Opening ${cluster.name}...`);
 
     // Get the correct login URL based on cluster type
     const loginUrl = getLoginUrl(cluster);
 
     // Update last login timestamp
-    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    chrome.storage.local.get('clusters', ({ clusters = [] }) => {
       if (chrome.runtime.lastError) {
-        console.error("[Login] Failed to update timestamp:", chrome.runtime.lastError);
+        console.error('[Login] Failed to update timestamp:', chrome.runtime.lastError);
         return;
       }
 
@@ -1266,15 +1274,15 @@ function loginToCluster(cluster, btn, forceNewTab = false) {
         clusters[clusterIndex].lastLogin = Date.now();
         chrome.storage.local.set({ clusters }, () => {
           if (chrome.runtime.lastError) {
-            console.error("[Login] Failed to save timestamp:", chrome.runtime.lastError);
+            console.error('[Login] Failed to save timestamp:', chrome.runtime.lastError);
           }
         });
       }
     });
 
-    chrome.storage.local.get("settings", ({ settings = {} }) => {
+    chrome.storage.local.get('settings', ({ settings = {} }) => {
       if (chrome.runtime.lastError) {
-        showStatus("error", "❌ Failed to load settings: " + chrome.runtime.lastError.message);
+        showStatus('error', '❌ Failed to load settings: ' + chrome.runtime.lastError.message);
         return;
       }
 
@@ -1284,10 +1292,10 @@ function loginToCluster(cluster, btn, forceNewTab = false) {
         // Open in new tab
         chrome.tabs.create({ url: loginUrl }, (tab) => {
           if (chrome.runtime.lastError || !tab) {
-            showStatus("error", "❌ Failed to open tab: " + (chrome.runtime.lastError?.message || "Unknown error"));
+            showStatus('error', '❌ Failed to open tab: ' + (chrome.runtime.lastError?.message || 'Unknown error'));
             if (btn) {
               btn.disabled = false;
-              btn.textContent = "Login";
+              btn.textContent = 'Login';
             }
             return;
           }
@@ -1297,20 +1305,20 @@ function loginToCluster(cluster, btn, forceNewTab = false) {
         // Open in current tab
         chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
           if (chrome.runtime.lastError || !tab) {
-            showStatus("error", "❌ Failed to get current tab");
+            showStatus('error', '❌ Failed to get current tab');
             if (btn) {
               btn.disabled = false;
-              btn.textContent = "Login";
+              btn.textContent = 'Login';
             }
             return;
           }
 
           chrome.tabs.update(tab.id, { url: loginUrl }, (updatedTab) => {
             if (chrome.runtime.lastError || !updatedTab) {
-              showStatus("error", "❌ Failed to navigate tab");
+              showStatus('error', '❌ Failed to navigate tab');
               if (btn) {
                 btn.disabled = false;
-                btn.textContent = "Login";
+                btn.textContent = 'Login';
               }
               return;
             }
@@ -1320,18 +1328,18 @@ function loginToCluster(cluster, btn, forceNewTab = false) {
       }
     });
   } catch (error) {
-    console.error("[Login Error]", error);
-    showStatus("error", "❌ Login failed: " + error.message);
+    console.error('[Login Error]', error);
+    showStatus('error', '❌ Login failed: ' + error.message);
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "Login";
+      btn.textContent = 'Login';
     }
   }
 }
 
 function waitForTabAndLogin(tabId, cluster, btn) {
   let settled = false;
-  let lastUrl = "";
+  let lastUrl = '';
   let stabilizeTimer = null;
   let certErrorShown = false;
   let certJustAccepted = false;
@@ -1342,8 +1350,8 @@ function waitForTabAndLogin(tabId, cluster, btn) {
     target: { tabId },
     func: (clusterUrl) => {
       try {
-        sessionStorage.setItem("os-autologin-source", clusterUrl);
-        console.log("[Auto-Login] Set source cluster URL:", clusterUrl);
+        sessionStorage.setItem('os-autologin-source', clusterUrl);
+        console.log('[Auto-Login] Set source cluster URL:', clusterUrl);
       } catch (e) {
         // Ignore errors (e.g., if page isn't loaded yet)
       }
@@ -1364,7 +1372,7 @@ function waitForTabAndLogin(tabId, cluster, btn) {
       console.log(`[Auto-Login] URL changed to: ${tab.url}`);
     }
 
-    if (info.status !== "complete") return;
+    if (info.status !== 'complete') return;
 
     // Wait a bit after "complete" to let any JS redirects settle
     if (stabilizeTimer) clearTimeout(stabilizeTimer);
@@ -1374,8 +1382,8 @@ function waitForTabAndLogin(tabId, cluster, btn) {
       chrome.tabs.get(tabId, (currentTab) => {
         if (chrome.runtime.lastError) return;
 
-        const currentUrl = currentTab.url || "";
-        const currentTitle = currentTab.title || "";
+        const currentUrl = currentTab.url || '';
+        const currentTitle = currentTab.title || '';
 
         console.log(`[Auto-Login] Status check - URL: ${currentUrl}, Title: ${currentTitle}, certErrorShown: ${certErrorShown}, settled: ${settled}`);
 
@@ -1385,10 +1393,10 @@ function waitForTabAndLogin(tabId, cluster, btn) {
         if (isCertError) {
           if (!certErrorShown) {
             certErrorShown = true;
-            console.log(`[Auto-Login] Certificate error detected! Waiting for user to proceed...`);
-            showStatus("info", `🔒 Certificate warning detected. Click "Advanced" → "Proceed" in the tab, then auto-login will continue.`);
+            console.log('[Auto-Login] Certificate error detected! Waiting for user to proceed...');
+            showStatus('info', '🔒 Certificate warning detected. Click "Advanced" → "Proceed" in the tab, then auto-login will continue.');
             if (btn) {
-              btn.textContent = "Waiting...";
+              btn.textContent = 'Waiting...';
             }
           }
           // Don't settle - keep waiting for user to bypass the certificate warning
@@ -1396,33 +1404,33 @@ function waitForTabAndLogin(tabId, cluster, btn) {
         }
 
         // If we had a cert error but now we're past it
-        if (certErrorShown && !isCertError && currentUrl.startsWith("https://")) {
+        if (certErrorShown && !isCertError && currentUrl.startsWith('https://')) {
           console.log(`[Auto-Login] Certificate accepted! URL is now valid HTTPS: ${currentUrl}`);
           certErrorShown = false;
           certJustAccepted = true;
-          showStatus("info", `✅ Certificate accepted. Waiting for page to load...`);
+          showStatus('info', '✅ Certificate accepted. Waiting for page to load...');
           if (btn) {
-            btn.textContent = "Loading...";
+            btn.textContent = 'Loading...';
           }
 
           // Force a retry after 2 seconds in case no more page updates come
           setTimeout(() => {
             if (!settled && certJustAccepted) {
-              console.log(`[Auto-Login] Forcing login attempt after cert acceptance timeout...`);
+              console.log('[Auto-Login] Forcing login attempt after cert acceptance timeout...');
               chrome.tabs.get(tabId, (tab) => {
                 if (chrome.runtime.lastError || !tab) return;
 
                 // Manually trigger login injection
-                if (tab.url && tab.url.startsWith("https://")) {
+                if (tab.url && tab.url.startsWith('https://')) {
                   certJustAccepted = false;
-                  if (btn) btn.textContent = "Logging in...";
+                  if (btn) btn.textContent = 'Logging in...';
 
                   // Set source cluster URL before login attempt
                   chrome.scripting.executeScript({
                     target: { tabId },
                     func: (clusterUrl) => {
                       try {
-                        sessionStorage.setItem("os-autologin-source", clusterUrl);
+                        sessionStorage.setItem('os-autologin-source', clusterUrl);
                       } catch (e) { /* ignore */ }
                     },
                     args: [cluster.url]
@@ -1435,7 +1443,7 @@ function waitForTabAndLogin(tabId, cluster, btn) {
                   }).then((results) => {
                     const result = results && results[0] && results[0].result;
                     console.log(`[Auto-Login] Forced script result: ${result}`);
-                    if (result === "ok" || result === "submitted") {
+                    if (result === 'ok' || result === 'submitted') {
                       watchForSuccess(tabId, cluster, btn);
                       settled = true;
                       chrome.tabs.onUpdated.removeListener(listener);
@@ -1463,25 +1471,25 @@ function waitForTabAndLogin(tabId, cluster, btn) {
               target: { tabId },
               func: () => {
                 try {
-                  sessionStorage.removeItem("os-autologin-source");
+                  sessionStorage.removeItem('os-autologin-source');
                 } catch (e) { /* ignore */ }
               }
             }).catch(() => {});
 
-            showStatus("success", `✅ Logged into ${cluster.name}!`);
-            if (btn) { btn.disabled = false; btn.textContent = "Login"; }
+            showStatus('success', `✅ Logged into ${cluster.name}!`);
+            if (btn) { btn.disabled = false; btn.textContent = 'Login'; }
           }
           return;
         }
 
         // Inject login script into whatever page we're on (OAuth or console login)
-        if (!settled && !isCertError && currentUrl.startsWith("https://")) {
+        if (!settled && !isCertError && currentUrl.startsWith('https://')) {
           // If we just recovered from cert error, clear the flag
           if (certJustAccepted) {
-            console.log(`[Auto-Login] Page loaded after cert acceptance, now attempting login...`);
+            console.log('[Auto-Login] Page loaded after cert acceptance, now attempting login...');
             certJustAccepted = false;
             if (btn) {
-              btn.textContent = "Logging in...";
+              btn.textContent = 'Logging in...';
             }
           }
           console.log(`[Auto-Login] Attempting to inject login script into ${currentUrl}...`);
@@ -1492,7 +1500,7 @@ function waitForTabAndLogin(tabId, cluster, btn) {
             target: { tabId },
             func: (clusterUrl) => {
               try {
-                sessionStorage.setItem("os-autologin-source", clusterUrl);
+                sessionStorage.setItem('os-autologin-source', clusterUrl);
               } catch (e) { /* ignore */ }
             },
             args: [cluster.url]
@@ -1505,14 +1513,14 @@ function waitForTabAndLogin(tabId, cluster, btn) {
           }).then((results) => {
             const result = results && results[0] && results[0].result;
             console.log(`[Auto-Login] Script result: ${result}`);
-            if (result === "no_form") {
+            if (result === 'no_form') {
               // No login form found — page is still redirecting, keep waiting
-              console.log(`[Auto-Login] No form found yet, will retry on next page update...`);
+              console.log('[Auto-Login] No form found yet, will retry on next page update...');
               return;
             }
-            if (result === "ok" || result === "submitted") {
+            if (result === 'ok' || result === 'submitted') {
               // Form was submitted — now watch for the final redirect to console
-              console.log(`[Auto-Login] Login form submitted successfully!`);
+              console.log('[Auto-Login] Login form submitted successfully!');
               watchForSuccess(tabId, cluster, btn);
               settled = true;
               chrome.tabs.onUpdated.removeListener(listener);
@@ -1522,8 +1530,8 @@ function waitForTabAndLogin(tabId, cluster, btn) {
             console.log(`[Auto-Login] Script injection failed: ${err.message || err}`);
           });
         } else if (!settled && isCertError) {
-          console.log(`[Auto-Login] Skipping login injection - still on cert error page`);
-        } else if (!settled && !currentUrl.startsWith("https://")) {
+          console.log('[Auto-Login] Skipping login injection - still on cert error page');
+        } else if (!settled && !currentUrl.startsWith('https://')) {
           console.log(`[Auto-Login] Skipping login injection - URL not HTTPS yet: ${currentUrl}`);
         }
       });
@@ -1539,12 +1547,12 @@ function waitForTabAndLogin(tabId, cluster, btn) {
       console.log(`[Auto-Login] Timeout reached. certErrorShown: ${certErrorShown}, certJustAccepted: ${certJustAccepted}`);
 
       if (certErrorShown) {
-        showStatus("error", "❌ Timed out waiting for certificate acceptance. Please click 'Proceed' in the tab.");
+        showStatus('error', "❌ Timed out waiting for certificate acceptance. Please click 'Proceed' in the tab.");
       } else {
-        showStatus("error", "❌ Login timed out. Check credentials, cluster URL, or try again.");
+        showStatus('error', '❌ Login timed out. Check credentials, cluster URL, or try again.');
       }
 
-      if (btn) { btn.disabled = false; btn.textContent = "Login"; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Login'; }
     }
   }, 45000);
 }
@@ -1553,8 +1561,8 @@ function waitForTabAndLogin(tabId, cluster, btn) {
 function watchForSuccess(tabId, cluster, btn) {
   const domain = extractDomain(cluster.url);
   const successListener = (id, info, tab) => {
-    if (id !== tabId || info.status !== "complete") return;
-    const url = tab.url || "";
+    if (id !== tabId || info.status !== 'complete') return;
+    const url = tab.url || '';
     if (url.includes(domain) && !isLoginPage(url)) {
       chrome.tabs.onUpdated.removeListener(successListener);
 
@@ -1563,14 +1571,14 @@ function watchForSuccess(tabId, cluster, btn) {
         target: { tabId },
         func: () => {
           try {
-            sessionStorage.removeItem("os-autologin-source");
-            console.log("[Auto-Login] Cleared source cluster URL after successful login");
+            sessionStorage.removeItem('os-autologin-source');
+            console.log('[Auto-Login] Cleared source cluster URL after successful login');
           } catch (e) { /* ignore */ }
         }
       }).catch(() => {});
 
       // Re-enable auto-login for this cluster if it was previously disabled
-      chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+      chrome.storage.local.get('clusters', ({ clusters = [] }) => {
         const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
         if (clusterIndex !== -1 && clusters[clusterIndex].autoLoginDisabled) {
           delete clusters[clusterIndex].autoLoginDisabled;
@@ -1580,11 +1588,11 @@ function watchForSuccess(tabId, cluster, btn) {
         }
       });
 
-      showStatus("success", `✅ Logged into ${cluster.name}!`);
-      if (btn) { btn.disabled = false; btn.textContent = "Login"; }
+      showStatus('success', `✅ Logged into ${cluster.name}!`);
+      if (btn) { btn.disabled = false; btn.textContent = 'Login'; }
     }
     // If redirected to an error page
-    if (url.includes("login") && url.includes("error")) {
+    if (url.includes('login') && url.includes('error')) {
       chrome.tabs.onUpdated.removeListener(successListener);
 
       // Clear source cluster URL on error too
@@ -1592,13 +1600,13 @@ function watchForSuccess(tabId, cluster, btn) {
         target: { tabId },
         func: () => {
           try {
-            sessionStorage.removeItem("os-autologin-source");
+            sessionStorage.removeItem('os-autologin-source');
           } catch (e) { /* ignore */ }
         }
       }).catch(() => {});
 
       // Disable auto-login for this cluster to prevent infinite retry loops
-      chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+      chrome.storage.local.get('clusters', ({ clusters = [] }) => {
         const clusterIndex = clusters.findIndex(c => c.url === cluster.url);
         if (clusterIndex !== -1) {
           clusters[clusterIndex].autoLoginDisabled = true;
@@ -1608,8 +1616,8 @@ function watchForSuccess(tabId, cluster, btn) {
         }
       });
 
-      showStatus("error", `❌ Login failed — wrong credentials? Auto-login disabled for this cluster.`);
-      if (btn) { btn.disabled = false; btn.textContent = "Login"; }
+      showStatus('error', '❌ Login failed — wrong credentials? Auto-login disabled for this cluster.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Login'; }
     }
   };
   chrome.tabs.onUpdated.addListener(successListener);
@@ -1631,25 +1639,25 @@ function normalizeURL(url) {
 }
 
 function isLoginPage(url) {
-  return url.includes("/login") || url.includes("oauth") || url.includes("inputUsername");
+  return url.includes('/login') || url.includes('oauth') || url.includes('inputUsername');
 }
 
 // ── Detect SSL certificate error pages ────────────────
 function isCertificateErrorPage(url, title) {
   // Chrome error pages - these are the definitive indicators
-  if (url.startsWith("chrome-error://")) return true;
-  if (url.startsWith("about:neterror")) return true;
+  if (url.startsWith('chrome-error://')) return true;
+  if (url.startsWith('about:neterror')) return true;
 
   // If we have a regular HTTPS URL, it's not an error page
   // (even if the title mentions certificate/privacy, the user has clicked "Proceed")
-  if (url.startsWith("https://") || url.startsWith("http://")) return false;
+  if (url.startsWith('https://') || url.startsWith('http://')) return false;
 
   // Check page title for certificate/privacy errors (only if URL is suspicious)
-  const lowerTitle = (title || "").toLowerCase();
+  const lowerTitle = (title || '').toLowerCase();
   const errorKeywords = [
-    "privacy error",
-    "not private",
-    "your connection is not private"
+    'privacy error',
+    'not private',
+    'your connection is not private'
   ];
 
   return errorKeywords.some(keyword => lowerTitle.includes(keyword));
@@ -1676,8 +1684,8 @@ function performLogin(username, password) {
           "a[href*='htpasswd']",
           "a[href*='local']",
           "a[href*='idp']",
-          ".idp-link",
-          ".pf-c-button"
+          '.idp-link',
+          '.pf-c-button'
         ];
 
         let idpClicked = false;
@@ -1685,8 +1693,8 @@ function performLogin(username, password) {
           const els = [...document.querySelectorAll(sel)];
           const idpEl = els.find(el => {
             const txt = el.textContent.toLowerCase();
-            return txt.includes("htpasswd") || txt.includes("local") ||
-                   txt.includes("ldap") || txt.includes("login");
+            return txt.includes('htpasswd') || txt.includes('local') ||
+                   txt.includes('ldap') || txt.includes('login');
           });
           if (idpEl) {
             idpEl.click();
@@ -1699,16 +1707,16 @@ function performLogin(username, password) {
         // After IDP click, page may navigate — wait for fields
         let userField, passField;
         try {
-          userField = await waitFor("#inputUsername", idpClicked ? 6000 : 3000);
-          passField = document.querySelector("#inputPassword");
+          userField = await waitFor('#inputUsername', idpClicked ? 6000 : 3000);
+          passField = document.querySelector('#inputPassword');
         } catch {
           // No login form visible yet (still redirecting or IDP page has no form)
-          resolve("no_form");
+          resolve('no_form');
           return;
         }
 
         if (!userField || !passField) {
-          resolve("no_form");
+          resolve('no_form');
           return;
         }
 
@@ -1717,12 +1725,12 @@ function performLogin(username, password) {
           field.focus();
           // Use native input value setter to bypass React/Angular onChange detection
           const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-            window.HTMLInputElement.prototype, "value"
+            window.HTMLInputElement.prototype, 'value'
           ).set;
           nativeInputValueSetter.call(field, value);
-          field.dispatchEvent(new Event("input",  { bubbles: true }));
-          field.dispatchEvent(new Event("change", { bubbles: true }));
-          field.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+          field.dispatchEvent(new Event('input',  { bubbles: true }));
+          field.dispatchEvent(new Event('change', { bubbles: true }));
+          field.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
         };
 
         setFieldValue(userField, username);
@@ -1737,15 +1745,15 @@ function performLogin(username, password) {
 
         if (submitBtn) {
           submitBtn.click();
-          resolve("submitted");
+          resolve('submitted');
         } else {
           // Try pressing Enter on password field
-          passField.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-          resolve("submitted");
+          passField.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+          resolve('submitted');
         }
 
       } catch (e) {
-        resolve("no_form"); // Don't reject — let the tab watcher retry
+        resolve('no_form'); // Don't reject — let the tab watcher retry
       }
     })();
   });
@@ -1753,24 +1761,24 @@ function performLogin(username, password) {
 
 // ── Status message ────────────────────────────────────
 function showStatus(type, message) {
-  const el = document.getElementById("status");
+  const el = document.getElementById('status');
   el.className = `status ${type}`;
   el.textContent = message;
 
   // Auto-hide success messages after 3 seconds with fade out
-  if (type === "success") {
+  if (type === 'success') {
     setTimeout(() => {
-      el.style.animation = "toastFadeOut 0.3s ease";
+      el.style.animation = 'toastFadeOut 0.3s ease';
       setTimeout(() => {
-        el.style.display = "none";
-        el.style.animation = ""; // Reset animation
+        el.style.display = 'none';
+        el.style.animation = ''; // Reset animation
       }, 300);
     }, 3000);
   }
 }
 
 function escapeHtml(str) {
-  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Add cluster form ──────────────────────────────────
@@ -1780,19 +1788,19 @@ function saveFormState() {
   // Debounce to avoid excessive storage writes
   clearTimeout(saveFormTimeout);
   saveFormTimeout = setTimeout(() => {
-    const addForm = document.getElementById("add-form");
-    const nameField = document.getElementById("f-name");
-    const urlField = document.getElementById("f-url");
-    const userField = document.getElementById("f-user");
-    const passwordField = document.getElementById("f-password");
-    const typeField = document.getElementById("f-type");
-    const roleField = document.getElementById("f-role");
-    const groupField = document.getElementById("f-group");
+    const addForm = document.getElementById('add-form');
+    const nameField = document.getElementById('f-name');
+    const urlField = document.getElementById('f-url');
+    const userField = document.getElementById('f-user');
+    const passwordField = document.getElementById('f-password');
+    const typeField = document.getElementById('f-type');
+    const roleField = document.getElementById('f-role');
+    const groupField = document.getElementById('f-group');
 
     if (!addForm || !nameField) return; // Safety check
 
     const formState = {
-      isOpen: addForm.style.display === "block",
+      isOpen: addForm.style.display === 'block',
       name: nameField.value,
       url: urlField.value,
       user: userField.value,
@@ -1807,24 +1815,24 @@ function saveFormState() {
 
 // Restore form state when popup opens
 function restoreFormState() {
-  chrome.storage.local.get("formState", ({ formState }) => {
+  chrome.storage.local.get('formState', ({ formState }) => {
     if (!formState) return;
 
     // Restore field values
-    if (formState.name) document.getElementById("f-name").value = formState.name;
-    if (formState.url) document.getElementById("f-url").value = formState.url;
-    if (formState.user) document.getElementById("f-user").value = formState.user;
-    if (formState.password) document.getElementById("f-password").value = formState.password;
-    if (formState.type) document.getElementById("f-type").value = formState.type;
-    if (formState.role) document.getElementById("f-role").value = formState.role;
-    if (formState.group) document.getElementById("f-group").value = formState.group;
+    if (formState.name) document.getElementById('f-name').value = formState.name;
+    if (formState.url) document.getElementById('f-url').value = formState.url;
+    if (formState.user) document.getElementById('f-user').value = formState.user;
+    if (formState.password) document.getElementById('f-password').value = formState.password;
+    if (formState.type) document.getElementById('f-type').value = formState.type;
+    if (formState.role) document.getElementById('f-role').value = formState.role;
+    if (formState.group) document.getElementById('f-group').value = formState.group;
 
     // Restore form visibility
     if (formState.isOpen) {
-      document.getElementById("add-form").style.display = "flex";
-      document.getElementById("add-btn").style.display = "none";
-  if (document.getElementById("quick-import-btn")) {
-    document.getElementById("quick-import-btn").style.display = "none";
+      document.getElementById('add-form').style.display = 'flex';
+      document.getElementById('add-btn').style.display = 'none';
+  if (document.getElementById('quick-import-btn')) {
+    document.getElementById('quick-import-btn').style.display = 'none';
   }
     }
   });
@@ -1832,60 +1840,60 @@ function restoreFormState() {
 
 // Clear form state from storage
 function clearFormState() {
-  chrome.storage.local.remove("formState");
+  chrome.storage.local.remove('formState');
 }
 
 // Auto-save form state on input changes
 function setupFormAutosave() {
-  ["f-name", "f-url", "f-user", "f-password", "f-type", "f-role", "f-group"].forEach(id => {
+  ['f-name', 'f-url', 'f-user', 'f-password', 'f-type', 'f-role', 'f-group'].forEach(id => {
     const field = document.getElementById(id);
-    field.addEventListener("input", saveFormState);
-    field.addEventListener("change", saveFormState);
+    field.addEventListener('input', saveFormState);
+    field.addEventListener('change', saveFormState);
   });
 }
 
-document.getElementById("add-btn").addEventListener("click", () => {
-  document.getElementById("add-form").style.display = "flex";
-  document.getElementById("add-btn").style.display  = "none";
-  if (document.getElementById("quick-import-btn")) {
-    document.getElementById("quick-import-btn").style.display = "none";
+document.getElementById('add-btn').addEventListener('click', () => {
+  document.getElementById('add-form').style.display = 'flex';
+  document.getElementById('add-btn').style.display  = 'none';
+  if (document.getElementById('quick-import-btn')) {
+    document.getElementById('quick-import-btn').style.display = 'none';
   }
 
   // Set default username to "kubeadmin" if field is empty
-  const userField = document.getElementById("f-user");
+  const userField = document.getElementById('f-user');
   if (!userField.value.trim()) {
-    userField.value = "kubeadmin";
+    userField.value = 'kubeadmin';
   }
 
-  document.getElementById("f-name").focus();
+  document.getElementById('f-name').focus();
   saveFormState(); // Save that form is now open
 });
 
 // Add password toggle functionality for Add Cluster form
-const addTogglePasswordBtn = document.getElementById("f-toggle-password-btn");
-const addPasswordField = document.getElementById("f-password");
+const addTogglePasswordBtn = document.getElementById('f-toggle-password-btn');
+const addPasswordField = document.getElementById('f-password');
 if (addTogglePasswordBtn && addPasswordField) {
-  addTogglePasswordBtn.addEventListener("click", () => {
-    if (addPasswordField.type === "password") {
-      addPasswordField.type = "text";
-      addTogglePasswordBtn.textContent = "🙈";
-      addTogglePasswordBtn.style.color = "#ffd700";
+  addTogglePasswordBtn.addEventListener('click', () => {
+    if (addPasswordField.type === 'password') {
+      addPasswordField.type = 'text';
+      addTogglePasswordBtn.textContent = '🙈';
+      addTogglePasswordBtn.style.color = '#ffd700';
     } else {
-      addPasswordField.type = "password";
-      addTogglePasswordBtn.textContent = "👁️";
-      addTogglePasswordBtn.style.color = "#888";
+      addPasswordField.type = 'password';
+      addTogglePasswordBtn.textContent = '👁️';
+      addTogglePasswordBtn.style.color = '#888';
     }
   });
 }
 
 // Dynamic role options based on platform type
-const typeSelect = document.getElementById("f-type");
-const roleSelect = document.getElementById("f-role");
+const typeSelect = document.getElementById('f-type');
+const roleSelect = document.getElementById('f-role');
 if (typeSelect && roleSelect) {
-  typeSelect.addEventListener("change", (e) => {
+  typeSelect.addEventListener('change', (e) => {
     const type = e.target.value;
 
-    if (type === "vsphere") {
+    if (type === 'vsphere') {
       roleSelect.innerHTML = `
         <option value="">Auto-detect</option>
         <option value="vcenter">vCenter Server</option>
@@ -1905,35 +1913,35 @@ if (typeSelect && roleSelect) {
 }
 
 // Jenkins import button - opens Import tab
-const jenkinsImportBtn = document.getElementById("jenkins-import-btn");
+const jenkinsImportBtn = document.getElementById('jenkins-import-btn');
 if (jenkinsImportBtn) {
-  jenkinsImportBtn.addEventListener("click", () => {
+  jenkinsImportBtn.addEventListener('click', () => {
     // Switch to Import tab
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
     const importTab = document.querySelector('.tab[data-tab="import"]');
-    const importContent = document.getElementById("tab-import");
+    const importContent = document.getElementById('tab-import');
 
-    if (importTab) importTab.classList.add("active");
-    if (importContent) importContent.classList.add("active");
+    if (importTab) importTab.classList.add('active');
+    if (importContent) importContent.classList.add('active');
 
     // Focus on Jenkins URL input
     setTimeout(() => {
-      const jenkinsUrlInput = document.getElementById("jenkins-url");
+      const jenkinsUrlInput = document.getElementById('jenkins-url');
       if (jenkinsUrlInput) {
         jenkinsUrlInput.focus();
-        jenkinsUrlInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        jenkinsUrlInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 100);
   });
 }
 
 // Quick import from link button
-const quickImportBtn = document.getElementById("quick-import-btn");
+const quickImportBtn = document.getElementById('quick-import-btn');
 if (quickImportBtn) {
-  quickImportBtn.addEventListener("click", () => {
-    const link = prompt("📥 Paste shareable link:", "osac://import/");
+  quickImportBtn.addEventListener('click', () => {
+    const link = prompt('📥 Paste shareable link:', 'osac://import/');
 
     if (!link || !link.trim()) {
       return;
@@ -1941,8 +1949,8 @@ if (quickImportBtn) {
 
     // Extract base64 from link
     let base64;
-    if (link.startsWith("osac://import/")) {
-      base64 = link.substring("osac://import/".length);
+    if (link.startsWith('osac://import/')) {
+      base64 = link.substring('osac://import/'.length);
     } else {
       base64 = link;
     }
@@ -1953,7 +1961,7 @@ if (quickImportBtn) {
       const importData = JSON.parse(jsonStr);
 
       if (!importData.clusters || !Array.isArray(importData.clusters)) {
-        alert("Invalid share link format");
+        alert('Invalid share link format');
         return;
       }
 
@@ -1964,7 +1972,7 @@ if (quickImportBtn) {
         return;
       }
 
-      chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+      chrome.storage.local.get('clusters', ({ clusters = [] }) => {
         // Add imported clusters (avoid duplicates by URL)
         const existingUrls = new Set(clusters.map(c => c.url));
         let added = 0;
@@ -1976,7 +1984,7 @@ if (quickImportBtn) {
           } else {
             // Add type field if missing (default to openshift for backward compatibility)
             if (!imported.type) {
-              imported.type = "openshift";
+              imported.type = 'openshift';
             }
             clusters.push(imported);
             added++;
@@ -1990,46 +1998,46 @@ if (quickImportBtn) {
           if (skipped > 0) {
             message += ` | Skipped ${skipped} duplicate(s)`;
           }
-          showStatus("success", message);
+          showStatus('success', message);
         });
       });
 
     } catch (err) {
-      console.error("Import error:", err);
-      alert("Failed to import: Invalid share link format");
+      console.error('Import error:', err);
+      alert('Failed to import: Invalid share link format');
     }
   });
 }
 
 // Close modal function
 function closeAddModal() {
-  document.getElementById("add-form").style.display = "none";
-  document.getElementById("add-btn").style.display  = "block";
-  if (document.getElementById("quick-import-btn")) {
-    document.getElementById("quick-import-btn").style.display = "block";
+  document.getElementById('add-form').style.display = 'none';
+  document.getElementById('add-btn').style.display  = 'block';
+  if (document.getElementById('quick-import-btn')) {
+    document.getElementById('quick-import-btn').style.display = 'block';
   }
   // Clear form fields
-  ["f-name","f-url","f-user","f-password","f-type","f-role","f-group","f-tags","f-notes"].forEach(id => {
+  ['f-name','f-url','f-user','f-password','f-type','f-role','f-group','f-tags','f-notes'].forEach(id => {
     const el = document.getElementById(id);
     if (el.tagName === 'SELECT') el.selectedIndex = 0;
-    else el.value = "";
+    else el.value = '';
   });
   clearFormState(); // Clear saved state
 }
 
 // Cancel button
-document.getElementById("cancel-btn").addEventListener("click", closeAddModal);
+document.getElementById('cancel-btn').addEventListener('click', closeAddModal);
 
 // Modal close button (X)
-const modalCloseBtn = document.getElementById("modal-close-btn");
+const modalCloseBtn = document.getElementById('modal-close-btn');
 if (modalCloseBtn) {
-  modalCloseBtn.addEventListener("click", closeAddModal);
+  modalCloseBtn.addEventListener('click', closeAddModal);
 }
 
 // Click outside modal to close
-const addFormModal = document.getElementById("add-form");
+const addFormModal = document.getElementById('add-form');
 if (addFormModal) {
-  addFormModal.addEventListener("click", (e) => {
+  addFormModal.addEventListener('click', (e) => {
     // Only close if clicking the overlay itself, not the modal content
     if (e.target === addFormModal) {
       closeAddModal();
@@ -2038,54 +2046,54 @@ if (addFormModal) {
 }
 
 // ESC key to close modal
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    const modal = document.getElementById("add-form");
-    if (modal && modal.style.display === "flex") {
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('add-form');
+    if (modal && modal.style.display === 'flex') {
       closeAddModal();
     }
   }
 });
 
 // ── Test Connection Button ────────────────────────────
-document.getElementById("test-connection-btn").addEventListener("click", () => {
-  const url = document.getElementById("f-url").value.trim();
+document.getElementById('test-connection-btn').addEventListener('click', () => {
+  const url = document.getElementById('f-url').value.trim();
 
   if (!url) {
-    showStatus("error", "❌ Please enter a Console URL first");
+    showStatus('error', '❌ Please enter a Console URL first');
     return;
   }
 
-  if (!url.startsWith("http")) {
-    showStatus("error", "❌ URL must start with https:// or http://");
+  if (!url.startsWith('http')) {
+    showStatus('error', '❌ URL must start with https:// or http://');
     return;
   }
 
-  showStatus("info", "🔗 Opening cluster URL in new tab. Accept the certificate if prompted, then close the tab and save your cluster.");
+  showStatus('info', '🔗 Opening cluster URL in new tab. Accept the certificate if prompted, then close the tab and save your cluster.');
 
   // Open URL in new tab so user can accept the certificate
   chrome.tabs.create({ url: url, active: true });
 });
 
-document.getElementById("save-btn").addEventListener("click", () => {
-  const name     = document.getElementById("f-name").value.trim();
-  const rawUrl   = document.getElementById("f-url").value.trim();
-  const user     = document.getElementById("f-user").value.trim();
-  const password = document.getElementById("f-password").value;
-  const type     = document.getElementById("f-type").value || "openshift";
-  const role     = document.getElementById("f-role").value.trim();
-  const group    = document.getElementById("f-group").value.trim();
-  const tagsInput = document.getElementById("f-tags").value.trim();
-  const notes    = document.getElementById("f-notes").value.trim();
+document.getElementById('save-btn').addEventListener('click', () => {
+  const name     = document.getElementById('f-name').value.trim();
+  const rawUrl   = document.getElementById('f-url').value.trim();
+  const user     = document.getElementById('f-user').value.trim();
+  const password = document.getElementById('f-password').value;
+  const type     = document.getElementById('f-type').value || 'openshift';
+  const role     = document.getElementById('f-role').value.trim();
+  const group    = document.getElementById('f-group').value.trim();
+  const tagsInput = document.getElementById('f-tags').value.trim();
+  const notes    = document.getElementById('f-notes').value.trim();
 
   const url = normalizeURL(rawUrl);
 
   if (!name || !url || !user || !password) {
-    showStatus("error", "❌ All fields are required");
+    showStatus('error', '❌ All fields are required');
     return;
   }
-  if (!url.startsWith("http")) {
-    showStatus("error", "❌ URL must start with https://");
+  if (!url.startsWith('http')) {
+    showStatus('error', '❌ URL must start with https://');
     return;
   }
 
@@ -2093,16 +2101,16 @@ document.getElementById("save-btn").addEventListener("click", () => {
   const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
 
   try {
-    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    chrome.storage.local.get('clusters', ({ clusters = [] }) => {
       if (chrome.runtime.lastError) {
-        showStatus("error", "❌ Failed to load clusters: " + chrome.runtime.lastError.message);
+        showStatus('error', '❌ Failed to load clusters: ' + chrome.runtime.lastError.message);
         return;
       }
 
       // Check for duplicates
       const duplicate = clusters.find(c => c.url === url);
       if (duplicate) {
-        showStatus("error", `❌ Cluster with URL already exists: ${duplicate.name}`);
+        showStatus('error', `❌ Cluster with URL already exists: ${duplicate.name}`);
         return;
       }
 
@@ -2122,25 +2130,25 @@ document.getElementById("save-btn").addEventListener("click", () => {
       clusters.push(newCluster);
       chrome.storage.local.set({ clusters }, () => {
         if (chrome.runtime.lastError) {
-          showStatus("error", "❌ Failed to save cluster: " + chrome.runtime.lastError.message);
+          showStatus('error', '❌ Failed to save cluster: ' + chrome.runtime.lastError.message);
           return;
         }
 
-        document.getElementById("add-form").style.display = "none";
-        document.getElementById("add-btn").style.display  = "block";
-        ["f-name","f-url","f-user","f-password","f-type","f-role","f-group","f-tags","f-notes"].forEach(id => {
+        document.getElementById('add-form').style.display = 'none';
+        document.getElementById('add-btn').style.display  = 'block';
+        ['f-name','f-url','f-user','f-password','f-type','f-role','f-group','f-tags','f-notes'].forEach(id => {
           const el = document.getElementById(id);
           if (el && el.tagName === 'SELECT') el.selectedIndex = 0;
-          else if (el) el.value = "";
+          else if (el) el.value = '';
         });
         clearFormState();
         loadClusters();
-        showStatus("success", `✅ ${name} added!`);
+        showStatus('success', `✅ ${name} added!`);
       });
     });
   } catch (error) {
-    console.error("[Save Error]", error);
-    showStatus("error", "❌ Failed to save cluster: " + error.message);
+    console.error('[Save Error]', error);
+    showStatus('error', '❌ Failed to save cluster: ' + error.message);
   }
 });
 
@@ -2156,38 +2164,38 @@ function applyPopupSize(size) {
 }
 
 function loadSettings() {
-  chrome.storage.local.get("settings", ({ settings = {} }) => {
-    document.getElementById("toggle-auto").checked         = settings.autoLogin       || false;
-    document.getElementById("toggle-confirm").checked      = settings.confirm         !== false; // default true
-    document.getElementById("toggle-newtab").checked       = settings.newTab          !== false; // default true
-    document.getElementById("toggle-background").checked   = settings.backgroundTabs  !== false; // default true
-    document.getElementById("toggle-sequential").checked   = settings.sequentialTabs  || false;  // default false
+  chrome.storage.local.get('settings', ({ settings = {} }) => {
+    document.getElementById('toggle-auto').checked         = settings.autoLogin       || false;
+    document.getElementById('toggle-confirm').checked      = settings.confirm         !== false; // default true
+    document.getElementById('toggle-newtab').checked       = settings.newTab          !== false; // default true
+    document.getElementById('toggle-background').checked   = settings.backgroundTabs  !== false; // default true
+    document.getElementById('toggle-sequential').checked   = settings.sequentialTabs  || false;  // default false
 
     // Load and apply popup size
     const popupSize = settings.popupSize || 'normal';
-    document.getElementById("popup-size-select").value = popupSize;
+    document.getElementById('popup-size-select').value = popupSize;
     applyPopupSize(popupSize);
   });
 }
 
 function saveSetting(key, value) {
-  chrome.storage.local.get("settings", ({ settings = {} }) => {
+  chrome.storage.local.get('settings', ({ settings = {} }) => {
     settings[key] = value;
     chrome.storage.local.set({ settings });
   });
 }
 
-document.getElementById("toggle-auto").addEventListener("change",        e => saveSetting("autoLogin",      e.target.checked));
-document.getElementById("toggle-confirm").addEventListener("change",    e => saveSetting("confirm",        e.target.checked));
-document.getElementById("toggle-newtab").addEventListener("change",     e => saveSetting("newTab",         e.target.checked));
-document.getElementById("toggle-background").addEventListener("change", e => saveSetting("backgroundTabs", e.target.checked));
-document.getElementById("toggle-sequential").addEventListener("change", e => saveSetting("sequentialTabs", e.target.checked));
+document.getElementById('toggle-auto').addEventListener('change',        e => saveSetting('autoLogin',      e.target.checked));
+document.getElementById('toggle-confirm').addEventListener('change',    e => saveSetting('confirm',        e.target.checked));
+document.getElementById('toggle-newtab').addEventListener('change',     e => saveSetting('newTab',         e.target.checked));
+document.getElementById('toggle-background').addEventListener('change', e => saveSetting('backgroundTabs', e.target.checked));
+document.getElementById('toggle-sequential').addEventListener('change', e => saveSetting('sequentialTabs', e.target.checked));
 
 // Popup size selector
-document.getElementById("popup-size-select").addEventListener("change", e => {
+document.getElementById('popup-size-select').addEventListener('change', e => {
   const size = e.target.value;
   applyPopupSize(size);
-  saveSetting("popupSize", size);
+  saveSetting('popupSize', size);
 });
 
 // ── Data Management ───────────────────────────────────
@@ -2211,7 +2219,7 @@ function extractBaseDomain(url) {
 
 // Populate filter dropdowns (for both cache clearing and deletion)
 function populateFilterDropdowns() {
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     const domains = new Map();
     const groups = new Map();
 
@@ -2227,26 +2235,26 @@ function populateFilterDropdowns() {
     });
 
     // Populate delete filter dropdowns
-    const domainSelect = document.getElementById("filter-domain-select");
+    const domainSelect = document.getElementById('filter-domain-select');
     if (domainSelect) {
       domainSelect.innerHTML = '<option value="">All domains...</option>';
       Array.from(domains.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
         .forEach(([domain, count]) => {
-          const option = document.createElement("option");
+          const option = document.createElement('option');
           option.value = domain;
           option.textContent = `${domain} (${count})`;
           domainSelect.appendChild(option);
         });
     }
 
-    const groupSelect = document.getElementById("filter-group-select");
+    const groupSelect = document.getElementById('filter-group-select');
     if (groupSelect) {
       groupSelect.innerHTML = '<option value="">All groups...</option>';
       Array.from(groups.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
         .forEach(([group, count]) => {
-          const option = document.createElement("option");
+          const option = document.createElement('option');
           option.value = group;
           option.textContent = `${group} (${count})`;
           groupSelect.appendChild(option);
@@ -2254,26 +2262,26 @@ function populateFilterDropdowns() {
     }
 
     // Populate cache filter dropdowns
-    const cacheDomainSelect = document.getElementById("cache-filter-domain-select");
+    const cacheDomainSelect = document.getElementById('cache-filter-domain-select');
     if (cacheDomainSelect) {
       cacheDomainSelect.innerHTML = '<option value="">All domains...</option>';
       Array.from(domains.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
         .forEach(([domain, count]) => {
-          const option = document.createElement("option");
+          const option = document.createElement('option');
           option.value = domain;
           option.textContent = `${domain} (${count})`;
           cacheDomainSelect.appendChild(option);
         });
     }
 
-    const cacheGroupSelect = document.getElementById("cache-filter-group-select");
+    const cacheGroupSelect = document.getElementById('cache-filter-group-select');
     if (cacheGroupSelect) {
       cacheGroupSelect.innerHTML = '<option value="">All groups...</option>';
       Array.from(groups.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
         .forEach(([group, count]) => {
-          const option = document.createElement("option");
+          const option = document.createElement('option');
           option.value = group;
           option.textContent = `${group} (${count})`;
           cacheGroupSelect.appendChild(option);
@@ -2284,17 +2292,17 @@ function populateFilterDropdowns() {
 
 // Render selective cluster list
 function renderSelectiveClusters() {
-  const filterDomain = document.getElementById("filter-domain-select").value;
-  const filterGroup = document.getElementById("filter-group-select").value;
+  const filterDomain = document.getElementById('filter-domain-select').value;
+  const filterGroup = document.getElementById('filter-group-select').value;
 
   if (!filterDomain && !filterGroup) {
-    document.getElementById("selective-cluster-list").innerHTML =
+    document.getElementById('selective-cluster-list').innerHTML =
       '<div style="font-size:11px;color:#666;text-align:center;padding:20px;">Select a domain or group to view clusters</div>';
     updateDeleteButton();
     return;
   }
 
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     let filtered = clusters;
 
     if (filterDomain) {
@@ -2305,7 +2313,7 @@ function renderSelectiveClusters() {
       filtered = filtered.filter(c => c.group === filterGroup);
     }
 
-    const listEl = document.getElementById("selective-cluster-list");
+    const listEl = document.getElementById('selective-cluster-list');
 
     if (filtered.length === 0) {
       listEl.innerHTML = '<div style="font-size:11px;color:#666;text-align:center;padding:20px;">No clusters match the selected filters</div>';
@@ -2336,7 +2344,7 @@ function renderSelectiveClusters() {
 // Update delete button state
 function updateDeleteButton() {
   const checkboxes = document.querySelectorAll('.selective-delete-checkbox:checked');
-  const btn = document.getElementById("delete-selected-clusters-btn");
+  const btn = document.getElementById('delete-selected-clusters-btn');
   const count = checkboxes.length;
 
   btn.textContent = `🗑️ Delete Selected (${count})`;
@@ -2352,16 +2360,16 @@ function updateDeleteButton() {
 }
 
 // Filter change handlers
-document.getElementById("filter-domain-select").addEventListener("change", renderSelectiveClusters);
-document.getElementById("filter-group-select").addEventListener("change", renderSelectiveClusters);
+document.getElementById('filter-domain-select').addEventListener('change', renderSelectiveClusters);
+document.getElementById('filter-group-select').addEventListener('change', renderSelectiveClusters);
 
 // Select/Deselect all
-document.getElementById("select-all-filtered-btn").addEventListener("click", () => {
+document.getElementById('select-all-filtered-btn').addEventListener('click', () => {
   document.querySelectorAll('.selective-delete-checkbox').forEach(cb => cb.checked = true);
   updateDeleteButton();
 });
 
-document.getElementById("deselect-all-filtered-btn").addEventListener("click", () => {
+document.getElementById('deselect-all-filtered-btn').addEventListener('click', () => {
   document.querySelectorAll('.selective-delete-checkbox').forEach(cb => cb.checked = false);
   updateDeleteButton();
 });
@@ -2399,21 +2407,21 @@ async function clearClusterBrowserData(urls) {
       console.log(`[Clear Cache] Cleared data for ${origin}`);
     }
 
-    console.log(`[Clear Cache] Successfully cleared browser data for all deleted clusters`);
+    console.log('[Clear Cache] Successfully cleared browser data for all deleted clusters');
   } catch (error) {
     console.error('[Clear Cache] Failed to clear browser data:', error);
   }
 }
 
 // Delete selected clusters
-document.getElementById("delete-selected-clusters-btn").addEventListener("click", () => {
+document.getElementById('delete-selected-clusters-btn').addEventListener('click', () => {
   const checkboxes = document.querySelectorAll('.selective-delete-checkbox:checked');
 
   if (checkboxes.length === 0) return;
 
   const urlsToDelete = Array.from(checkboxes).map(cb => cb.dataset.clusterUrl);
 
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     const toDelete = clusters.filter(c => urlsToDelete.includes(c.url));
     const clusterList = toDelete.map(c => `  • ${c.name}${c.group ? ` (${c.group})` : ''}`).join('\n');
 
@@ -2448,7 +2456,7 @@ document.getElementById("delete-selected-clusters-btn").addEventListener("click"
       loadClusters();
       populateFilterDropdowns();
       renderSelectiveClusters();
-      showStatus("success", `✅ Deleted ${toDelete.length} cluster(s)`);
+      showStatus('success', `✅ Deleted ${toDelete.length} cluster(s)`);
     });
   });
 });
@@ -2459,10 +2467,10 @@ document.getElementById("delete-selected-clusters-btn").addEventListener("click"
 
 // Render cache cluster list
 function renderCacheClusters() {
-  const filterDomain = document.getElementById("cache-filter-domain-select")?.value;
-  const filterGroup = document.getElementById("cache-filter-group-select")?.value;
+  const filterDomain = document.getElementById('cache-filter-domain-select')?.value;
+  const filterGroup = document.getElementById('cache-filter-group-select')?.value;
 
-  const listEl = document.getElementById("cache-cluster-list");
+  const listEl = document.getElementById('cache-cluster-list');
   if (!listEl) return;
 
   if (!filterDomain && !filterGroup) {
@@ -2471,7 +2479,7 @@ function renderCacheClusters() {
     return;
   }
 
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     let filtered = clusters;
 
     if (filterDomain) {
@@ -2511,7 +2519,7 @@ function renderCacheClusters() {
 // Update clear cache button state
 function updateCacheClearButton() {
   const checkboxes = document.querySelectorAll('.cache-clear-checkbox:checked');
-  const btn = document.getElementById("clear-cache-btn");
+  const btn = document.getElementById('clear-cache-btn');
   if (!btn) return;
 
   const count = checkboxes.length;
@@ -2529,46 +2537,46 @@ function updateCacheClearButton() {
 }
 
 // Cache filter change handlers
-const cacheDomainSelect = document.getElementById("cache-filter-domain-select");
-const cacheGroupSelect = document.getElementById("cache-filter-group-select");
+const cacheDomainSelect = document.getElementById('cache-filter-domain-select');
+const cacheGroupSelect = document.getElementById('cache-filter-group-select');
 
 if (cacheDomainSelect) {
-  cacheDomainSelect.addEventListener("change", renderCacheClusters);
+  cacheDomainSelect.addEventListener('change', renderCacheClusters);
 }
 
 if (cacheGroupSelect) {
-  cacheGroupSelect.addEventListener("change", renderCacheClusters);
+  cacheGroupSelect.addEventListener('change', renderCacheClusters);
 }
 
 // Select/Deselect all for cache
-const cacheSelectAllBtn = document.getElementById("cache-select-all-btn");
-const cacheDeselectAllBtn = document.getElementById("cache-deselect-all-btn");
+const cacheSelectAllBtn = document.getElementById('cache-select-all-btn');
+const cacheDeselectAllBtn = document.getElementById('cache-deselect-all-btn');
 
 if (cacheSelectAllBtn) {
-  cacheSelectAllBtn.addEventListener("click", () => {
+  cacheSelectAllBtn.addEventListener('click', () => {
     document.querySelectorAll('.cache-clear-checkbox').forEach(cb => cb.checked = true);
     updateCacheClearButton();
   });
 }
 
 if (cacheDeselectAllBtn) {
-  cacheDeselectAllBtn.addEventListener("click", () => {
+  cacheDeselectAllBtn.addEventListener('click', () => {
     document.querySelectorAll('.cache-clear-checkbox').forEach(cb => cb.checked = false);
     updateCacheClearButton();
   });
 }
 
 // Clear cache for selected clusters (WITHOUT deleting them)
-const clearCacheBtn = document.getElementById("clear-cache-btn");
+const clearCacheBtn = document.getElementById('clear-cache-btn');
 if (clearCacheBtn) {
-  clearCacheBtn.addEventListener("click", async () => {
+  clearCacheBtn.addEventListener('click', async () => {
     const checkboxes = document.querySelectorAll('.cache-clear-checkbox:checked');
 
     if (checkboxes.length === 0) return;
 
     const urlsToClear = Array.from(checkboxes).map(cb => cb.dataset.clusterUrl);
 
-    chrome.storage.local.get("clusters", async ({ clusters = [] }) => {
+    chrome.storage.local.get('clusters', async ({ clusters = [] }) => {
       const toClear = clusters.filter(c => urlsToClear.includes(c.url));
       const clusterList = toClear.map(c => `  • ${c.name}`).join('\n');
 
@@ -2580,7 +2588,7 @@ if (clearCacheBtn) {
       await clearClusterBrowserData(urlsToClear);
 
       renderCacheClusters();
-      showStatus("success", `✅ Cleared browser cache for ${toClear.length} cluster(s)`);
+      showStatus('success', `✅ Cleared browser cache for ${toClear.length} cluster(s)`);
     });
   });
 }
@@ -2603,7 +2611,7 @@ document.querySelectorAll('.tab[data-tab="settings"]').forEach(tab => {
 
 // Populate share filter dropdowns
 function populateShareFilterDropdowns() {
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     const domains = new Map();
     const groups = new Map();
 
@@ -2618,26 +2626,26 @@ function populateShareFilterDropdowns() {
       }
     });
 
-    const shareDomainSelect = document.getElementById("share-filter-domain-select");
+    const shareDomainSelect = document.getElementById('share-filter-domain-select');
     if (shareDomainSelect) {
       shareDomainSelect.innerHTML = '<option value="">All domains...</option>';
       Array.from(domains.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
         .forEach(([domain, count]) => {
-          const option = document.createElement("option");
+          const option = document.createElement('option');
           option.value = domain;
           option.textContent = `${domain} (${count})`;
           shareDomainSelect.appendChild(option);
         });
     }
 
-    const shareGroupSelect = document.getElementById("share-filter-group-select");
+    const shareGroupSelect = document.getElementById('share-filter-group-select');
     if (shareGroupSelect) {
       shareGroupSelect.innerHTML = '<option value="">All groups...</option>';
       Array.from(groups.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
         .forEach(([group, count]) => {
-          const option = document.createElement("option");
+          const option = document.createElement('option');
           option.value = group;
           option.textContent = `${group} (${count})`;
           shareGroupSelect.appendChild(option);
@@ -2650,10 +2658,10 @@ function populateShareFilterDropdowns() {
 function renderShareClusters() {
   populateShareFilterDropdowns();
 
-  const filterDomain = document.getElementById("share-filter-domain-select")?.value;
-  const filterGroup = document.getElementById("share-filter-group-select")?.value;
+  const filterDomain = document.getElementById('share-filter-domain-select')?.value;
+  const filterGroup = document.getElementById('share-filter-group-select')?.value;
 
-  const listEl = document.getElementById("share-cluster-list");
+  const listEl = document.getElementById('share-cluster-list');
   if (!listEl) return;
 
   if (!filterDomain && !filterGroup) {
@@ -2662,7 +2670,7 @@ function renderShareClusters() {
     return;
   }
 
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     let filtered = clusters;
 
     if (filterDomain) {
@@ -2702,7 +2710,7 @@ function renderShareClusters() {
 // Update share button state
 function updateShareButton() {
   const checkboxes = document.querySelectorAll('.share-checkbox:checked');
-  const btn = document.getElementById("generate-share-link-btn");
+  const btn = document.getElementById('generate-share-link-btn');
   if (!btn) return;
 
   const count = checkboxes.length;
@@ -2720,58 +2728,58 @@ function updateShareButton() {
 }
 
 // Share filter change handlers
-const shareDomainSelect = document.getElementById("share-filter-domain-select");
-const shareGroupSelect = document.getElementById("share-filter-group-select");
+const shareDomainSelect = document.getElementById('share-filter-domain-select');
+const shareGroupSelect = document.getElementById('share-filter-group-select');
 
 if (shareDomainSelect) {
-  shareDomainSelect.addEventListener("change", renderShareClusters);
+  shareDomainSelect.addEventListener('change', renderShareClusters);
 }
 
 if (shareGroupSelect) {
-  shareGroupSelect.addEventListener("change", renderShareClusters);
+  shareGroupSelect.addEventListener('change', renderShareClusters);
 }
 
 // Select/Deselect all for share
-const shareSelectAllBtn = document.getElementById("share-select-all-btn");
-const shareDeselectAllBtn = document.getElementById("share-deselect-all-btn");
+const shareSelectAllBtn = document.getElementById('share-select-all-btn');
+const shareDeselectAllBtn = document.getElementById('share-deselect-all-btn');
 
 if (shareSelectAllBtn) {
-  shareSelectAllBtn.addEventListener("click", () => {
+  shareSelectAllBtn.addEventListener('click', () => {
     document.querySelectorAll('.share-checkbox').forEach(cb => cb.checked = true);
     updateShareButton();
   });
 }
 
 if (shareDeselectAllBtn) {
-  shareDeselectAllBtn.addEventListener("click", () => {
+  shareDeselectAllBtn.addEventListener('click', () => {
     document.querySelectorAll('.share-checkbox').forEach(cb => cb.checked = false);
     updateShareButton();
   });
 }
 
 // Generate shareable link
-const generateShareLinkBtn = document.getElementById("generate-share-link-btn");
+const generateShareLinkBtn = document.getElementById('generate-share-link-btn');
 if (generateShareLinkBtn) {
-  generateShareLinkBtn.addEventListener("click", () => {
+  generateShareLinkBtn.addEventListener('click', () => {
     const checkboxes = document.querySelectorAll('.share-checkbox:checked');
     if (checkboxes.length === 0) return;
 
-    const includePasswords = document.getElementById("share-include-passwords").checked;
+    const includePasswords = document.getElementById('share-include-passwords').checked;
     const urlsToShare = Array.from(checkboxes).map(cb => cb.dataset.clusterUrl);
 
-    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    chrome.storage.local.get('clusters', ({ clusters = [] }) => {
       const toShare = clusters.filter(c => urlsToShare.includes(c.url));
 
       // Create export data
       const exportData = {
-        version: "2.4.0",
+        version: '3.2.0',
         timestamp: Date.now(),
         clusters: toShare.map(c => {
           const exported = {
             name: c.name,
             url: c.url,
             user: c.user,
-            type: c.type || "openshift"
+            type: c.type || 'openshift'
           };
 
           if (includePasswords) {
@@ -2780,6 +2788,7 @@ if (generateShareLinkBtn) {
 
           if (c.group) exported.group = c.group;
           if (c.role) exported.role = c.role;
+          if (c.kubeconfigUrl) exported.kubeconfigUrl = c.kubeconfigUrl;
 
           return exported;
         })
@@ -2798,7 +2807,7 @@ if (generateShareLinkBtn) {
 
 // Show modal with shareable link
 function showShareLinkModal(link, count, includePasswords) {
-  const modal = document.createElement("div");
+  const modal = document.createElement('div');
   modal.style.cssText = `
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.85); z-index: 9999;
@@ -2852,37 +2861,89 @@ function showShareLinkModal(link, count, includePasswords) {
   document.body.appendChild(modal);
 
   // Copy link handler
-  document.getElementById("copy-share-link-btn").addEventListener("click", () => {
-    const textarea = document.getElementById("share-link-text");
+  document.getElementById('copy-share-link-btn').addEventListener('click', () => {
+    const textarea = document.getElementById('share-link-text');
     textarea.select();
-    document.execCommand("copy");
+    document.execCommand('copy');
 
-    const btn = document.getElementById("copy-share-link-btn");
+    const btn = document.getElementById('copy-share-link-btn');
     const originalText = btn.textContent;
-    btn.textContent = "✅ Copied!";
-    btn.style.background = "#1a4a1a";
+    btn.textContent = '✅ Copied!';
+    btn.style.background = '#1a4a1a';
     setTimeout(() => {
       btn.textContent = originalText;
-      btn.style.background = "#1a3a5a";
+      btn.style.background = '#1a3a5a';
     }, 2000);
   });
 
   // Close modal handler
-  document.getElementById("close-share-modal-btn").addEventListener("click", () => {
+  document.getElementById('close-share-modal-btn').addEventListener('click', () => {
     modal.remove();
   });
 
   // Close on overlay click
-  modal.addEventListener("click", (e) => {
+  modal.addEventListener('click', (e) => {
     if (e.target === modal) {
       modal.remove();
     }
   });
 }
 
+// Download kubeconfig function
+function downloadKubeconfig(cluster) {
+  if (!cluster.kubeconfig) {
+    showStatus('error', '❌ No kubeconfig available for this cluster');
+    return;
+  }
+
+  try {
+    // Create a blob from the kubeconfig content
+    const blob = new Blob([cluster.kubeconfig], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+
+    // Create a temporary download link
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kubeconfig-${cluster.name}.yaml`;
+    document.body.appendChild(a);
+    a.click();
+
+    // Clean up
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showStatus('success', `✅ Downloaded kubeconfig for ${cluster.name}`);
+  } catch (error) {
+    console.error('[Download Kubeconfig Error]', error);
+    showStatus('error', `❌ Failed to download kubeconfig: ${error.message}`);
+  }
+}
+
+// Open kubeconfig URL in new tab
+function openKubeconfigUrl(cluster) {
+  if (!cluster.kubeconfigUrl) {
+    showStatus('error', '❌ No kubeconfig URL available for this cluster');
+    return;
+  }
+
+  try {
+    // Open the kubeconfig URL in a new tab
+    chrome.tabs.create({ url: cluster.kubeconfigUrl, active: true }, (tab) => {
+      if (chrome.runtime.lastError || !tab) {
+        showStatus('error', '❌ Failed to open kubeconfig URL');
+        return;
+      }
+      showStatus('success', `✅ Opened kubeconfig URL for ${cluster.name}`);
+    });
+  } catch (error) {
+    console.error('[Open Kubeconfig URL Error]', error);
+    showStatus('error', `❌ Failed to open kubeconfig URL: ${error.message}`);
+  }
+}
+
 // Show password modal
 function showPasswordModal(cluster) {
-  const modal = document.createElement("div");
+  const modal = document.createElement('div');
   modal.style.cssText = `
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.85); z-index: 9999;
@@ -2953,6 +3014,20 @@ function showPasswordModal(cluster) {
       </div>
 
       <div style="display:flex;gap:10px;">
+        ${cluster.kubeconfig ? `
+          <button id="download-kubeconfig-btn" style="
+            flex:1;background:#1a3a5a;color:#6bb4ff;border:1px solid #2a4a6a;
+            border-radius:6px;padding:10px;cursor:pointer;font-size:13px;font-weight:bold;">
+            📥 Download Kubeconfig
+          </button>
+        ` : ''}
+        ${cluster.kubeconfigUrl ? `
+          <button id="open-kubeconfig-url-btn" style="
+            flex:1;background:#1a3a5a;color:#6bb4ff;border:1px solid #2a4a6a;
+            border-radius:6px;padding:10px;cursor:pointer;font-size:13px;font-weight:bold;">
+            🔗 Open Kubeconfig URL
+          </button>
+        ` : ''}
         <button id="close-password-modal-btn" style="
           flex:1;background:#EE0000;color:white;border:none;
           border-radius:6px;padding:10px;cursor:pointer;font-size:13px;font-weight:bold;">
@@ -2965,59 +3040,81 @@ function showPasswordModal(cluster) {
   document.body.appendChild(modal);
 
   // Toggle password visibility
-  const passwordField = document.getElementById("password-field");
-  const toggleBtn = document.getElementById("toggle-password-btn");
-  toggleBtn.addEventListener("click", () => {
-    if (passwordField.type === "password") {
-      passwordField.type = "text";
-      toggleBtn.textContent = "🙈";
+  const passwordField = document.getElementById('password-field');
+  const toggleBtn = document.getElementById('toggle-password-btn');
+  toggleBtn.addEventListener('click', () => {
+    if (passwordField.type === 'password') {
+      passwordField.type = 'text';
+      toggleBtn.textContent = '🙈';
     } else {
-      passwordField.type = "password";
-      toggleBtn.textContent = "👁️";
+      passwordField.type = 'password';
+      toggleBtn.textContent = '👁️';
     }
   });
 
   // Copy username
-  document.getElementById("copy-username-btn").addEventListener("click", () => {
-    const field = document.getElementById("username-field");
+  document.getElementById('copy-username-btn').addEventListener('click', () => {
+    const field = document.getElementById('username-field');
     field.select();
-    document.execCommand("copy");
+    document.execCommand('copy');
 
-    const btn = document.getElementById("copy-username-btn");
+    const btn = document.getElementById('copy-username-btn');
     const originalText = btn.textContent;
-    btn.textContent = "✅ Copied!";
-    btn.style.background = "#1a4a1a";
+    btn.textContent = '✅ Copied!';
+    btn.style.background = '#1a4a1a';
     setTimeout(() => {
       btn.textContent = originalText;
-      btn.style.background = "#1a3a5a";
+      btn.style.background = '#1a3a5a';
     }, 2000);
   });
 
   // Copy password
-  document.getElementById("copy-password-btn").addEventListener("click", () => {
-    const field = document.getElementById("password-field");
-    field.type = "text";
+  document.getElementById('copy-password-btn').addEventListener('click', () => {
+    const field = document.getElementById('password-field');
+    field.type = 'text';
     field.select();
-    document.execCommand("copy");
-    field.type = "password";
+    document.execCommand('copy');
+    field.type = 'password';
 
-    const btn = document.getElementById("copy-password-btn");
+    const btn = document.getElementById('copy-password-btn');
     const originalText = btn.textContent;
-    btn.textContent = "✅ Copied!";
-    btn.style.background = "#1a4a1a";
+    btn.textContent = '✅ Copied!';
+    btn.style.background = '#1a4a1a';
     setTimeout(() => {
       btn.textContent = originalText;
-      btn.style.background = "#1a3a5a";
+      btn.style.background = '#1a3a5a';
     }, 2000);
   });
 
+  // Download kubeconfig button (if available)
+  if (cluster.kubeconfig) {
+    const downloadBtn = document.getElementById('download-kubeconfig-btn');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', () => {
+        downloadKubeconfig(cluster);
+        modal.remove();
+      });
+    }
+  }
+
+  // Open kubeconfig URL button (if only URL is available)
+  if (cluster.kubeconfigUrl && !cluster.kubeconfig) {
+    const openUrlBtn = document.getElementById('open-kubeconfig-url-btn');
+    if (openUrlBtn) {
+      openUrlBtn.addEventListener('click', () => {
+        openKubeconfigUrl(cluster);
+        modal.remove();
+      });
+    }
+  }
+
   // Close modal
-  document.getElementById("close-password-modal-btn").addEventListener("click", () => {
+  document.getElementById('close-password-modal-btn').addEventListener('click', () => {
     modal.remove();
   });
 
   // Close on overlay click
-  modal.addEventListener("click", (e) => {
+  modal.addEventListener('click', (e) => {
     if (e.target === modal) {
       modal.remove();
     }
@@ -3025,21 +3122,21 @@ function showPasswordModal(cluster) {
 }
 
 // Import from share link
-const importShareLinkBtn = document.getElementById("import-share-link-btn");
+const importShareLinkBtn = document.getElementById('import-share-link-btn');
 if (importShareLinkBtn) {
-  importShareLinkBtn.addEventListener("click", () => {
-    const input = document.getElementById("import-share-link-input");
+  importShareLinkBtn.addEventListener('click', () => {
+    const input = document.getElementById('import-share-link-input');
     const link = input.value.trim();
 
     if (!link) {
-      alert("Please paste a shareable link first");
+      alert('Please paste a shareable link first');
       return;
     }
 
     // Extract base64 from link
     let base64;
-    if (link.startsWith("osac://import/")) {
-      base64 = link.substring("osac://import/".length);
+    if (link.startsWith('osac://import/')) {
+      base64 = link.substring('osac://import/'.length);
     } else {
       base64 = link;
     }
@@ -3050,7 +3147,7 @@ if (importShareLinkBtn) {
       const importData = JSON.parse(jsonStr);
 
       if (!importData.clusters || !Array.isArray(importData.clusters)) {
-        alert("Invalid share link format");
+        alert('Invalid share link format');
         return;
       }
 
@@ -3061,7 +3158,7 @@ if (importShareLinkBtn) {
         return;
       }
 
-      chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+      chrome.storage.local.get('clusters', ({ clusters = [] }) => {
         // Add imported clusters (avoid duplicates by URL)
         const existingUrls = new Set(clusters.map(c => c.url));
         let added = 0;
@@ -3073,7 +3170,7 @@ if (importShareLinkBtn) {
           } else {
             // Add type field if missing (default to openshift for backward compatibility)
             if (!imported.type) {
-              imported.type = "openshift";
+              imported.type = 'openshift';
             }
             clusters.push(imported);
             added++;
@@ -3082,7 +3179,7 @@ if (importShareLinkBtn) {
 
         chrome.storage.local.set({ clusters }, () => {
           loadClusters();
-          input.value = "";
+          input.value = '';
 
           let message = `✅ Imported ${added} cluster(s)`;
           if (skipped > 0) {
@@ -3093,8 +3190,8 @@ if (importShareLinkBtn) {
       });
 
     } catch (err) {
-      console.error("Import error:", err);
-      alert("Failed to import: Invalid share link format");
+      console.error('Import error:', err);
+      alert('Failed to import: Invalid share link format');
     }
   });
 }
@@ -3102,25 +3199,25 @@ if (importShareLinkBtn) {
 // ── Search / Filter ───────────────────────────────────
 // Combined filter function for search and type
 function filterClusters() {
-  const query = document.getElementById("search-clusters").value.toLowerCase();
-  const typeFilter = document.getElementById("filter-type").value;
-  const items = document.querySelectorAll(".cluster-item, .cluster-group");
+  const query = document.getElementById('search-clusters').value.toLowerCase();
+  const typeFilter = document.getElementById('filter-type').value;
+  const items = document.querySelectorAll('.cluster-item, .cluster-group');
 
   items.forEach(item => {
-    if (item.classList.contains("cluster-group")) {
+    if (item.classList.contains('cluster-group')) {
       // For groups, check if any cluster in the group matches
-      const groupName = item.querySelector(".group-name")?.textContent.toLowerCase() || "";
-      const clusterCards = item.querySelectorAll(".cluster-item");
+      const groupName = item.querySelector('.group-name')?.textContent.toLowerCase() || '';
+      const clusterCards = item.querySelectorAll('.cluster-item');
       let hasMatch = groupName.includes(query);
 
       clusterCards.forEach(card => {
-        const name = card.querySelector(".cluster-name")?.textContent.toLowerCase() || "";
-        const url = card.querySelector(".cluster-url")?.textContent.toLowerCase() || "";
+        const name = card.querySelector('.cluster-name')?.textContent.toLowerCase() || '';
+        const url = card.querySelector('.cluster-url')?.textContent.toLowerCase() || '';
 
         // Check for platform badge - look for .badge.vsphere or .badge.openshift
-        const vsphereBadge = card.querySelector(".badge.vsphere");
-        const openshiftBadge = card.querySelector(".badge.openshift");
-        const clusterType = vsphereBadge ? "vsphere" : "openshift";
+        const vsphereBadge = card.querySelector('.badge.vsphere');
+        const openshiftBadge = card.querySelector('.badge.openshift');
+        const clusterType = vsphereBadge ? 'vsphere' : 'openshift';
 
         // Check search query match
         const matchesQuery = name.includes(query) || url.includes(query);
@@ -3131,50 +3228,50 @@ function filterClusters() {
         if (matchesQuery && matchesType) hasMatch = true;
 
         // Hide/show individual cards within group
-        card.style.display = (matchesQuery && matchesType) ? "" : "none";
+        card.style.display = (matchesQuery && matchesType) ? '' : 'none';
       });
 
-      item.style.display = hasMatch ? "" : "none";
+      item.style.display = hasMatch ? '' : 'none';
     } else {
       // For individual cluster items
-      const name = item.querySelector(".cluster-name")?.textContent.toLowerCase() || "";
-      const url = item.querySelector(".cluster-url")?.textContent.toLowerCase() || "";
+      const name = item.querySelector('.cluster-name')?.textContent.toLowerCase() || '';
+      const url = item.querySelector('.cluster-url')?.textContent.toLowerCase() || '';
 
       // Check for platform badge - look for .badge.vsphere or .badge.openshift
-      const vsphereBadge = item.querySelector(".badge.vsphere");
-      const openshiftBadge = item.querySelector(".badge.openshift");
-      const clusterType = vsphereBadge ? "vsphere" : "openshift";
+      const vsphereBadge = item.querySelector('.badge.vsphere');
+      const openshiftBadge = item.querySelector('.badge.openshift');
+      const clusterType = vsphereBadge ? 'vsphere' : 'openshift';
 
       const matchesQuery = name.includes(query) || url.includes(query);
       const matchesType = !typeFilter || clusterType === typeFilter;
 
-      item.style.display = (matchesQuery && matchesType) ? "" : "none";
+      item.style.display = (matchesQuery && matchesType) ? '' : 'none';
     }
   });
 }
 
-document.getElementById("search-clusters").addEventListener("input", filterClusters);
-document.getElementById("filter-type").addEventListener("change", filterClusters);
+document.getElementById('search-clusters').addEventListener('input', filterClusters);
+document.getElementById('filter-type').addEventListener('change', filterClusters);
 
 // ── Bulk Actions ──────────────────────────────────────
 function updateBulkActionsBar() {
-  const checkboxes = document.querySelectorAll(".cluster-checkbox:checked");
-  const bar = document.getElementById("bulk-delete-bar");
-  const count = document.getElementById("selected-count");
+  const checkboxes = document.querySelectorAll('.cluster-checkbox:checked');
+  const bar = document.getElementById('bulk-delete-bar');
+  const count = document.getElementById('selected-count');
 
   if (checkboxes.length > 0) {
-    bar.style.display = "block";
+    bar.style.display = 'block';
     count.textContent = checkboxes.length;
   } else {
-    bar.style.display = "none";
+    bar.style.display = 'none';
   }
 }
 
-document.getElementById("bulk-delete-btn").addEventListener("click", () => {
-  const checkboxes = document.querySelectorAll(".cluster-checkbox:checked");
+document.getElementById('bulk-delete-btn').addEventListener('click', () => {
+  const checkboxes = document.querySelectorAll('.cluster-checkbox:checked');
   if (checkboxes.length === 0) return;
 
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index)).sort((a, b) => b - a);
     const toDelete = indices.map(i => clusters[i]).filter(Boolean);
 
@@ -3207,15 +3304,15 @@ document.getElementById("bulk-delete-btn").addEventListener("click", () => {
       indices.forEach(i => clusters.splice(i, 1));
       chrome.storage.local.set({ clusters }, () => {
         if (chrome.runtime.lastError) {
-          showStatus("error", "❌ Failed to delete clusters: " + chrome.runtime.lastError.message);
+          showStatus('error', '❌ Failed to delete clusters: ' + chrome.runtime.lastError.message);
           return;
         }
         loadClusters();
-        showStatus("success", `✅ Deleted ${indices.length} cluster(s)`);
+        showStatus('success', `✅ Deleted ${indices.length} cluster(s)`);
       });
     } catch (error) {
-      console.error("[Delete Error]", error);
-      showStatus("error", "❌ Failed to delete clusters: " + error.message);
+      console.error('[Delete Error]', error);
+      showStatus('error', '❌ Failed to delete clusters: ' + error.message);
     }
   });
 });
@@ -3228,23 +3325,23 @@ function handleDragStart(e) {
   e.stopPropagation(); // Prevent group from also dragging
   draggedElement = e.currentTarget;
   draggedIndex = parseInt(draggedElement.dataset.index);
-  draggedElement.classList.add("dragging");
-  e.dataTransfer.effectAllowed = "move";
+  draggedElement.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
 }
 
 function handleDragOver(e) {
   e.preventDefault();
-  e.dataTransfer.dropEffect = "move";
+  e.dataTransfer.dropEffect = 'move';
 
   const target = e.currentTarget;
-  if (target !== draggedElement && target.classList.contains("cluster-item")) {
-    target.classList.add("drag-over");
+  if (target !== draggedElement && target.classList.contains('cluster-item')) {
+    target.classList.add('drag-over');
   }
 
   // Allow dropping on group headers
-  const groupHeader = e.target.closest(".group-header");
-  if (groupHeader && draggedElement && draggedElement.classList.contains("cluster-item")) {
-    groupHeader.classList.add("drag-over");
+  const groupHeader = e.target.closest('.group-header');
+  if (groupHeader && draggedElement && draggedElement.classList.contains('cluster-item')) {
+    groupHeader.classList.add('drag-over');
   }
 }
 
@@ -3253,13 +3350,13 @@ function handleDrop(e) {
   e.stopPropagation();
 
   const target = e.currentTarget;
-  target.classList.remove("drag-over");
+  target.classList.remove('drag-over');
 
-  if (target === draggedElement || !target.classList.contains("cluster-item")) return;
+  if (target === draggedElement || !target.classList.contains('cluster-item')) return;
 
   const targetIndex = parseInt(target.dataset.index);
 
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     const [movedCluster] = clusters.splice(draggedIndex, 1);
     clusters.splice(targetIndex, 0, movedCluster);
     chrome.storage.local.set({ clusters }, loadClusters);
@@ -3267,9 +3364,9 @@ function handleDrop(e) {
 }
 
 function handleDragEnd(e) {
-  e.currentTarget.classList.remove("dragging");
-  document.querySelectorAll(".cluster-item").forEach(el => el.classList.remove("drag-over"));
-  document.querySelectorAll(".group-header").forEach(el => el.classList.remove("drag-over"));
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.cluster-item').forEach(el => el.classList.remove('drag-over'));
+  document.querySelectorAll('.group-header').forEach(el => el.classList.remove('drag-over'));
   draggedElement = null;
   draggedIndex = null;
 }
@@ -3279,23 +3376,23 @@ let draggedGroup = null;
 
 function handleGroupDragStart(e) {
   // Only allow dragging from the header, not from cluster items inside
-  if (e.target.closest(".cluster-item")) {
+  if (e.target.closest('.cluster-item')) {
     e.preventDefault();
     return;
   }
 
   draggedGroup = e.currentTarget;
-  draggedGroup.classList.add("dragging");
-  e.dataTransfer.effectAllowed = "move";
+  draggedGroup.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
 }
 
 function handleGroupDragOver(e) {
   e.preventDefault();
-  e.dataTransfer.dropEffect = "move";
+  e.dataTransfer.dropEffect = 'move';
 
   const target = e.currentTarget;
-  if (target !== draggedGroup && target.classList.contains("cluster-group")) {
-    target.classList.add("drag-over");
+  if (target !== draggedGroup && target.classList.contains('cluster-group')) {
+    target.classList.add('drag-over');
   }
 }
 
@@ -3304,12 +3401,12 @@ function handleGroupDrop(e) {
   e.stopPropagation();
 
   const target = e.currentTarget;
-  target.classList.remove("drag-over");
+  target.classList.remove('drag-over');
 
-  if (target === draggedGroup || !target.classList.contains("cluster-group")) return;
+  if (target === draggedGroup || !target.classList.contains('cluster-group')) return;
 
   // Get all groups in current display order
-  const allGroups = Array.from(document.querySelectorAll(".cluster-group"));
+  const allGroups = Array.from(document.querySelectorAll('.cluster-group'));
   const draggedIndex = allGroups.indexOf(draggedGroup);
   const targetIndex = allGroups.indexOf(target);
 
@@ -3323,14 +3420,14 @@ function handleGroupDrop(e) {
   }
 
   // Update storage order - we need to rebuild the clusters array based on new group order
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
-    const newGroups = Array.from(document.querySelectorAll(".cluster-group, .cluster-item:not(.cluster-group .cluster-item)"));
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
+    const newGroups = Array.from(document.querySelectorAll('.cluster-group, .cluster-item:not(.cluster-group .cluster-item)'));
     const newClusters = [];
 
     newGroups.forEach(element => {
-      if (element.classList.contains("cluster-group")) {
+      if (element.classList.contains('cluster-group')) {
         // It's a group - add all its clusters
-        const clusterItems = element.querySelectorAll(".cluster-item");
+        const clusterItems = element.querySelectorAll('.cluster-item');
         clusterItems.forEach(item => {
           const idx = parseInt(item.dataset.index);
           if (!isNaN(idx) && clusters[idx]) {
@@ -3351,13 +3448,13 @@ function handleGroupDrop(e) {
 }
 
 function handleGroupDragEnd(e) {
-  e.currentTarget.classList.remove("dragging");
-  document.querySelectorAll(".cluster-group").forEach(el => el.classList.remove("drag-over"));
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.cluster-group').forEach(el => el.classList.remove('drag-over'));
 }
 
 // ── Migrate existing clusters to add createdAt timestamp ──
 function migrateClusterTimestamps() {
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     let migrated = false;
     const now = Date.now();
 
@@ -3372,7 +3469,7 @@ function migrateClusterTimestamps() {
 
     if (migrated) {
       chrome.storage.local.set({ clusters }, () => {
-        console.log("Migrated clusters with createdAt timestamps");
+        console.log('Migrated clusters with createdAt timestamps');
         loadClusters();
       });
     } else {
@@ -3392,54 +3489,54 @@ setupFormAutosave(); // Auto-save form changes
 // ════════════════════════════════════════════════════════
 
 // ── Format tab switching ──────────────────────────────
-document.querySelectorAll(".format-tab").forEach(tab => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".format-tab").forEach(t => t.classList.remove("active"));
-    document.querySelectorAll(".format-example").forEach(e => e.classList.remove("active"));
-    tab.classList.add("active");
-    document.getElementById(`fmt-${tab.dataset.fmt}`).classList.add("active");
+document.querySelectorAll('.format-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.format-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.format-example').forEach(e => e.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(`fmt-${tab.dataset.fmt}`).classList.add('active');
   });
 });
 
 // ── Drag and drop ─────────────────────────────────────
-const dropZone  = document.getElementById("drop-zone");
-const fileInput = document.getElementById("file-input");
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
 
-dropZone.addEventListener("click", () => fileInput.click());
+dropZone.addEventListener('click', () => fileInput.click());
 
-dropZone.addEventListener("dragover", (e) => {
+dropZone.addEventListener('dragover', (e) => {
   e.preventDefault();
-  dropZone.classList.add("dragover");
+  dropZone.classList.add('dragover');
 });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-dropZone.addEventListener("drop", (e) => {
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
-  dropZone.classList.remove("dragover");
+  dropZone.classList.remove('dragover');
   const file = e.dataTransfer.files[0];
   if (file) processFile(file);
 });
 
-fileInput.addEventListener("change", () => {
+fileInput.addEventListener('change', () => {
   if (fileInput.files[0]) processFile(fileInput.files[0]);
 });
 
-document.getElementById("browse-btn").addEventListener("click", () => fileInput.click());
+document.getElementById('browse-btn').addEventListener('click', () => fileInput.click());
 
 // ── Parse file by extension ───────────────────────────
 function processFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const content = e.target.result;
-    const ext = file.name.split(".").pop().toLowerCase();
+    const ext = file.name.split('.').pop().toLowerCase();
     let clusters = [];
     let error = null;
 
     try {
-      if (ext === "json") {
+      if (ext === 'json') {
         clusters = parseJSON(content);
-      } else if (ext === "yaml" || ext === "yml") {
+      } else if (ext === 'yaml' || ext === 'yml') {
         clusters = parseYAML(content);
-      } else if (ext === "env" || ext === "txt") {
+      } else if (ext === 'env' || ext === 'txt') {
         clusters = parseEnv(content);
       } else {
         // Try all parsers
@@ -3454,7 +3551,7 @@ function processFile(file) {
     }
 
     if (error || clusters.length === 0) {
-      showImportStatus("error", `❌ Could not parse file: ${error || "No valid clusters found"}`);
+      showImportStatus('error', `❌ Could not parse file: ${error || 'No valid clusters found'}`);
       return;
     }
 
@@ -3468,14 +3565,22 @@ function parseJSON(content) {
   const data = JSON.parse(content);
   const arr = Array.isArray(data) ? data : (data.clusters || Object.values(data));
 
-  return arr.map(c => ({
-    name:     c.name     || c.cluster_name  || c.clusterName  || "Unknown",
-    url:      normalizeURL(c.url || c.console_url || c.consoleUrl || ""),
-    user:     c.user     || c.username      || c.user_name    || "",
-    password: c.password || c.pass         || c.pwd          || "",
-    role:     c.role     || "",
-    group:    c.group    || "",   // RDR group — Jenkins job ID
-  })).filter(c => c.url && c.user && c.password);
+  return arr.map(c => {
+    const cluster = {
+      name:     c.name     || c.cluster_name  || c.clusterName  || 'Unknown',
+      url:      normalizeURL(c.url || c.console_url || c.consoleUrl || ''),
+      user:     c.user     || c.username      || c.user_name    || '',
+      password: c.password || c.pass         || c.pwd          || '',
+      role:     c.role     || '',
+      group:    c.group    || '',   // RDR group — Jenkins job ID
+      type:     c.type     || 'openshift',
+    };
+
+    // Preserve kubeconfigUrl if present (not content - too large)
+    if (c.kubeconfigUrl) cluster.kubeconfigUrl = c.kubeconfigUrl;
+
+    return cluster;
+  }).filter(c => c.url && c.user && c.password);
 }
 
 // ── YAML parser (no library needed — simple line-by-line) ─
@@ -3484,52 +3589,52 @@ function parseYAML(content) {
   let current = null;
   let inClustersList = false;
 
-  for (let line of content.split("\n")) {
+  for (let line of content.split('\n')) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (!trimmed || trimmed.startsWith('#')) continue;
 
     // Detect list item start
-    if (trimmed.startsWith("- name:") || (trimmed === "-" && line.match(/^\s*-\s*$/))) {
+    if (trimmed.startsWith('- name:') || (trimmed === '-' && line.match(/^\s*-\s*$/))) {
       if (current && current.url && current.user && current.password) clusters.push(current);
       current = {};
       inClustersList = true;
-      const val = trimmed.replace(/^-\s*name:\s*/, "").replace(/['"]/g, "").trim();
+      const val = trimmed.replace(/^-\s*name:\s*/, '').replace(/['"]/g, '').trim();
       if (val) current.name = val;
       continue;
     }
 
-    if (!inClustersList && trimmed.startsWith("clusters:")) { inClustersList = true; continue; }
+    if (!inClustersList && trimmed.startsWith('clusters:')) { inClustersList = true; continue; }
 
     if (current) {
       const match = trimmed.match(/^(\w+):\s*(.+)$/);
       if (match) {
         const key = match[1].toLowerCase();
-        const val = match[2].replace(/['"]/g, "").trim();
-        if (key === "name")     current.name     = val;
-        if (key === "url")      current.url      = normalizeURL(val);
-        if (key === "user" || key === "username") current.user = val;
-        if (key === "password" || key === "pass" || key === "pwd") current.password = val;
-        if (key === "role")     current.role     = val;
-        if (key === "group")    current.group    = val;
+        const val = match[2].replace(/['"]/g, '').trim();
+        if (key === 'name')     current.name     = val;
+        if (key === 'url')      current.url      = normalizeURL(val);
+        if (key === 'user' || key === 'username') current.user = val;
+        if (key === 'password' || key === 'pass' || key === 'pwd') current.password = val;
+        if (key === 'role')     current.role     = val;
+        if (key === 'group')    current.group    = val;
       }
     }
   }
   if (current && current.url && current.user && current.password) clusters.push(current);
 
-  if (clusters.length === 0) throw new Error("No clusters found in YAML");
+  if (clusters.length === 0) throw new Error('No clusters found in YAML');
   return clusters;
 }
 
 // ── .env parser ───────────────────────────────────────
 function parseEnv(content) {
   const vars = {};
-  for (const line of content.split("\n")) {
+  for (const line of content.split('\n')) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
     if (eq < 0) continue;
     const key = trimmed.slice(0, eq).trim().toUpperCase();
-    const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+    const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
     vars[key] = val;
   }
 
@@ -3538,7 +3643,7 @@ function parseEnv(content) {
 
   // Find all prefixes that have at least URL + USER + PASSWORD
   for (const key of Object.keys(vars)) {
-    const suffix = ["_URL", "_USER", "_PASSWORD", "_NAME"].find(s => key.endsWith(s));
+    const suffix = ['_URL', '_USER', '_PASSWORD', '_NAME'].find(s => key.endsWith(s));
     if (suffix) prefixes.add(key.slice(0, key.length - suffix.length));
   }
 
@@ -3556,7 +3661,7 @@ function parseEnv(content) {
     }
   }
 
-  if (clusters.length === 0) throw new Error("No valid cluster entries found in .env");
+  if (clusters.length === 0) throw new Error('No valid cluster entries found in .env');
   return clusters;
 }
 
@@ -3565,8 +3670,8 @@ let pendingClusters = [];
 
 function showPreview(clusters) {
   pendingClusters = clusters;
-  const list = document.getElementById("preview-list");
-  list.style.display = "block";
+  const list = document.getElementById('preview-list');
+  list.style.display = 'block';
   list.innerHTML = `
     <div style="
       background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
@@ -3605,13 +3710,13 @@ function showPreview(clusters) {
   `;
 
   clusters.forEach(c => {
-    const item = document.createElement("div");
-    item.className = "preview-item";
+    const item = document.createElement('div');
+    item.className = 'preview-item';
     const warn = !c.url || !c.user || !c.password;
 
     // Detect platform type
-    const type = c.type || "openshift";
-    const platformIcon = type === "vsphere" ? "🔷" : "🔴";
+    const type = c.type || 'openshift';
+    const platformIcon = type === 'vsphere' ? '🔷' : '🔴';
 
     item.innerHTML = `
       <div class="preview-dot ${warn ? 'warn' : ''}"></div>
@@ -3636,16 +3741,16 @@ function showPreview(clusters) {
   });
 
   // Add event listener to header import button
-  const headerBtn = document.getElementById("confirm-import-btn-header");
+  const headerBtn = document.getElementById('confirm-import-btn-header');
   if (headerBtn) {
-    headerBtn.addEventListener("click", confirmImport);
-    headerBtn.addEventListener("mouseenter", () => {
-      headerBtn.style.background = "#f8fafc";
-      headerBtn.style.transform = "scale(1.05)";
+    headerBtn.addEventListener('click', confirmImport);
+    headerBtn.addEventListener('mouseenter', () => {
+      headerBtn.style.background = '#f8fafc';
+      headerBtn.style.transform = 'scale(1.05)';
     });
-    headerBtn.addEventListener("mouseleave", () => {
-      headerBtn.style.background = "white";
-      headerBtn.style.transform = "scale(1)";
+    headerBtn.addEventListener('mouseleave', () => {
+      headerBtn.style.background = 'white';
+      headerBtn.style.transform = 'scale(1)';
     });
   }
 
@@ -3660,20 +3765,20 @@ function showPreview(clusters) {
     }, 10);
   }, 100);
 
-  showImportStatus("success", `✅ Success! Found ${clusters.length} cluster(s). Review them below ⬇️`);
+  showImportStatus('success', `✅ Success! Found ${clusters.length} cluster(s). Review them below ⬇️`);
 }
 
 // ── Confirm and save clusters ─────────────────────────
 function confirmImport() {
   if (!pendingClusters.length) {
-    showStatus("error", "❌ No clusters to import");
+    showStatus('error', '❌ No clusters to import');
     return;
   }
 
   try {
-    chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+    chrome.storage.local.get('clusters', ({ clusters = [] }) => {
       if (chrome.runtime.lastError) {
-        showStatus("error", "❌ Failed to load existing clusters: " + chrome.runtime.lastError.message);
+        showStatus('error', '❌ Failed to load existing clusters: ' + chrome.runtime.lastError.message);
         return;
       }
 
@@ -3692,80 +3797,80 @@ function confirmImport() {
       }
 
       if (added === 0) {
-        showStatus("info", `ℹ️ All ${skipped} cluster(s) already exist (duplicates skipped)`);
-        document.getElementById("preview-list").style.display = "none";
+        showStatus('info', `ℹ️ All ${skipped} cluster(s) already exist (duplicates skipped)`);
+        document.getElementById('preview-list').style.display = 'none';
         pendingClusters = [];
         return;
       }
 
       chrome.storage.local.set({ clusters }, () => {
         if (chrome.runtime.lastError) {
-          showStatus("error", "❌ Failed to save clusters: " + chrome.runtime.lastError.message);
+          showStatus('error', '❌ Failed to save clusters: ' + chrome.runtime.lastError.message);
           return;
         }
 
-        document.getElementById("preview-list").style.display = "none";
+        document.getElementById('preview-list').style.display = 'none';
         pendingClusters = [];
 
         // Switch to clusters tab
-        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-        document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-        document.querySelector('.tab[data-tab="clusters"]').classList.add("active");
-        document.getElementById("tab-clusters").classList.add("active");
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelector('.tab[data-tab="clusters"]').classList.add('active');
+        document.getElementById('tab-clusters').classList.add('active');
 
         loadClusters();
 
         const msg = skipped > 0
           ? `✅ Imported ${added} cluster(s). Skipped ${skipped} duplicate(s).`
           : `✅ Imported ${added} cluster(s) successfully!`;
-        showStatus("success", msg);
+        showStatus('success', msg);
       });
     });
   } catch (error) {
-    console.error("[Import Error]", error);
-    showStatus("error", "❌ Import failed: " + error.message);
+    console.error('[Import Error]', error);
+    showStatus('error', '❌ Import failed: ' + error.message);
   }
 }
 
 // ── Auto-detect group name from Jenkins URL ──────────
-document.getElementById("jenkins-url").addEventListener("input", (e) => {
+document.getElementById('jenkins-url').addEventListener('input', (e) => {
   const url = e.target.value.trim();
-  const groupInput = document.getElementById("jenkins-group");
+  const groupInput = document.getElementById('jenkins-group');
 
   // Try to extract job ID from URL
-  const jobIdMatch = url.match(/\/job\/([^\/]+)\/(\d+)/);
+  const jobIdMatch = url.match(/\/job\/([^/]+)\/(\d+)/);
   if (jobIdMatch) {
     const jobId = jobIdMatch[2];
     groupInput.placeholder = `Auto-detected: ${jobId}`;
   } else {
-    groupInput.placeholder = "e.g. RDR-Setup-4073 or My-Test-Group";
+    groupInput.placeholder = 'e.g. RDR-Setup-4073 or My-Test-Group';
   }
 });
 
 // ── Fetch clusters from Jenkins ──────────────────────
-document.getElementById("fetch-jenkins-btn").addEventListener("click", async () => {
-  const jenkinsUrl = document.getElementById("jenkins-url").value.trim();
-  const jenkinsUser = document.getElementById("jenkins-user").value.trim();
-  const jenkinsToken = document.getElementById("jenkins-token").value.trim();
-  const customGroupName = document.getElementById("jenkins-group").value.trim();
-  const debugMode = document.getElementById("jenkins-debug").checked;
+document.getElementById('fetch-jenkins-btn').addEventListener('click', async () => {
+  const jenkinsUrl = document.getElementById('jenkins-url').value.trim();
+  const jenkinsUser = document.getElementById('jenkins-user').value.trim();
+  const jenkinsToken = document.getElementById('jenkins-token').value.trim();
+  const customGroupName = document.getElementById('jenkins-group').value.trim();
+  const debugMode = document.getElementById('jenkins-debug').checked;
 
   // Clear previous debug output
-  const debugOutput = document.getElementById("jenkins-debug-output");
-  const debugText = debugOutput.querySelector("div");
-  debugText.textContent = "";
-  debugOutput.style.display = "none";
+  const debugOutput = document.getElementById('jenkins-debug-output');
+  const debugText = debugOutput.querySelector('div');
+  debugText.textContent = '';
+  debugOutput.style.display = 'none';
 
   const debugLog = (msg) => {
     if (debugMode) {
-      debugText.textContent += msg + "\n";
-      debugOutput.style.display = "block";
+      debugText.textContent += msg + '\n';
+      debugOutput.style.display = 'block';
     }
     console.log(msg);
   };
 
   if (!jenkinsUrl) {
-    showImportStatus("error", "❌ Please enter a Jenkins job URL");
+    showImportStatus('error', '❌ Please enter a Jenkins job URL');
     return;
   }
 
@@ -3773,27 +3878,27 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
   try {
     const url = new URL(jenkinsUrl);
     if (!url.protocol.startsWith('http')) {
-      showImportStatus("error", "❌ Invalid Jenkins URL - must start with http:// or https://");
+      showImportStatus('error', '❌ Invalid Jenkins URL - must start with http:// or https://');
       return;
     }
   } catch (e) {
-    showImportStatus("error", "❌ Invalid Jenkins URL format - please enter a valid URL (e.g., https://jenkins.example.com/job/MyJob/123)");
+    showImportStatus('error', '❌ Invalid Jenkins URL format - please enter a valid URL (e.g., https://jenkins.example.com/job/MyJob/123)');
     return;
   }
 
-  const btn = document.getElementById("fetch-jenkins-btn");
+  const btn = document.getElementById('fetch-jenkins-btn');
   btn.disabled = true;
-  btn.textContent = "⏳ Fetching...";
-  showImportStatus("info", "🔄 Connecting to Jenkins...");
+  btn.textContent = '⏳ Fetching...';
+  showImportStatus('info', '🔄 Connecting to Jenkins...');
 
   debugLog(`[Jenkins Import] Starting fetch from: ${jenkinsUrl}`);
-  debugLog(`[Jenkins Import] Debug mode: enabled`);
+  debugLog('[Jenkins Import] Debug mode: enabled');
   debugLog(`[Jenkins Import] Authentication: ${jenkinsUser ? 'provided' : 'none'}`);
-  debugLog("");
+  debugLog('');
 
   try {
     // Normalize Jenkins URL
-    let baseUrl = jenkinsUrl.replace(/\/$/, "");
+    let baseUrl = jenkinsUrl.replace(/\/$/, '');
 
     // Setup auth headers if credentials provided
     const headers = {};
@@ -3805,7 +3910,7 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
     let allClusters = [];
 
     // Step 1: Fetch build info via Jenkins REST API (get ALL data to search for credentials)
-    showImportStatus("info", "📋 Fetching build information from REST API...");
+    showImportStatus('info', '📋 Fetching build information from REST API...');
     // Request full JSON to search for credentials in all fields
     const apiUrl = `${baseUrl}/api/json`;
     debugLog(`[Step 1] Fetching full build info from: ${apiUrl}`);
@@ -3816,12 +3921,12 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
 
       if (apiResponse.ok) {
         const buildInfo = await apiResponse.json();
-        debugLog(`[Step 1] Build info received`);
+        debugLog('[Step 1] Build info received');
         debugLog(`[Step 1] Top-level fields: ${Object.keys(buildInfo).join(', ')}`);
 
         // Step 1a: Extract credentials from build parameters and environment variables
         if (buildInfo.actions && buildInfo.actions.length > 0) {
-          showImportStatus("info", "🔍 Extracting credentials from build parameters...");
+          showImportStatus('info', '🔍 Extracting credentials from build parameters...');
           debugLog(`[Step 1a] Checking ${buildInfo.actions.length} action(s) for parameters...`);
 
           for (const action of buildInfo.actions) {
@@ -3847,13 +3952,13 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
                 debugLog(`[Step 1a] ✅ Found ${paramClusters.length} cluster(s) from build parameters`);
                 allClusters.push(...paramClusters);
               } else {
-                debugLog(`[Step 1a] ⚠️ No cluster credentials found in build parameters`);
+                debugLog('[Step 1a] ⚠️ No cluster credentials found in build parameters');
               }
             }
           }
         }
 
-        debugLog("");
+        debugLog('');
 
         // Step 1a-2: Search through ALL actions for environment variables or credentials
         debugLog(`[Step 1a-2] Deep searching all ${buildInfo.actions.length} actions for credentials...`);
@@ -3861,7 +3966,7 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
         for (const action of buildInfo.actions) {
           // Check if this action has environment variables
           if (action._class && action._class.includes('EnvAction')) {
-            debugLog(`[Step 1a-2] Found EnvAction! Examining...`);
+            debugLog('[Step 1a-2] Found EnvAction! Examining...');
             // Search for any field that might contain environment variables
             for (const key of Object.keys(action)) {
               if (key !== '_class' && typeof action[key] === 'object') {
@@ -3896,10 +4001,10 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
           }
         }
 
-        debugLog("");
+        debugLog('');
 
         // Step 1b: Try to fetch environment variables which often contain the actual credentials
-        showImportStatus("info", "🔍 Fetching environment variables from Jenkins...");
+        showImportStatus('info', '🔍 Fetching environment variables from Jenkins...');
         const envUrl = `${baseUrl}/injectedEnvVars/api/json`;
         debugLog(`[Step 1b] Fetching environment variables from: ${envUrl}`);
 
@@ -3918,25 +4023,25 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
                 debugLog(`[Step 1b] ✅ Found ${envClusters.length} cluster(s) from environment variables`);
                 allClusters.push(...envClusters);
               } else {
-                debugLog(`[Step 1b] ⚠️ No cluster credentials found in environment variables`);
+                debugLog('[Step 1b] ⚠️ No cluster credentials found in environment variables');
               }
             } else {
-              debugLog(`[Step 1b] ⚠️ No envMap found in response`);
+              debugLog('[Step 1b] ⚠️ No envMap found in response');
             }
           } else {
             debugLog(`[Step 1b] ⚠️ Failed to fetch environment variables (HTTP ${envResponse.status})`);
-            debugLog(`[Step 1b] This is normal for some Jenkins configurations`);
+            debugLog('[Step 1b] This is normal for some Jenkins configurations');
           }
         } catch (e) {
           debugLog(`[Step 1b] ⚠️ Could not fetch environment variables: ${e.message}`);
-          debugLog(`[Step 1b] This is normal - not all Jenkins jobs expose environment variables`);
+          debugLog('[Step 1b] This is normal - not all Jenkins jobs expose environment variables');
         }
 
-        debugLog("");
+        debugLog('');
 
         // Step 1c: Parse build description for kubeconfig download paths (like the bash script does)
         if (buildInfo.description) {
-          showImportStatus("info", "🔍 Parsing build description for credentials...");
+          showImportStatus('info', '🔍 Parsing build description for credentials...');
           debugLog(`[Step 1c] Found build description (${buildInfo.description.length} chars)`);
 
           // Show sample of description for debugging
@@ -3944,12 +4049,12 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
             .replace(/<[^>]+>/g, ' ')  // Strip HTML tags
             .replace(/\s+/g, ' ')       // Normalize whitespace
             .trim();
-          debugLog(`[Step 1c] Description preview (first 500 chars):`);
+          debugLog('[Step 1c] Description preview (first 500 chars):');
           debugLog(`  ${descriptionText.substring(0, 500)}...`);
-          debugLog(``);
+          debugLog('');
 
           // Parse HTML description to find kubeconfig paths
-          debugLog(`[Step 1c] Extracting kubeconfig download paths...`);
+          debugLog('[Step 1c] Extracting kubeconfig download paths...');
           const kubeconfigPaths = extractKubeconfigPaths(buildInfo.description, debugLog);
 
           if (kubeconfigPaths.length > 0) {
@@ -4016,7 +4121,7 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
 
             // Extract console URLs from description (do this ALWAYS, not just when cluster names are missing)
             if (kubeconfigPaths.length > 0 && buildInfo.description) {
-              debugLog(`[Step 1c] Extracting console URLs from description...`);
+              debugLog('[Step 1c] Extracting console URLs from description...');
 
               let urlsFoundInDescription = 0;
 
@@ -4063,13 +4168,13 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
               if (urlsFoundInDescription > 0) {
                 debugLog(`[Step 1c] Extracted ${urlsFoundInDescription} console URL(s) from description`);
               } else {
-                debugLog(`[Step 1c] ⚠️  No console URLs found in description`);
+                debugLog('[Step 1c] ⚠️  No console URLs found in description');
               }
             }
 
             // Try to extract actual cluster names from description before falling back to defaults
             if (clusterNames.length === 0 && kubeconfigPaths.length > 0 && buildInfo.description) {
-              debugLog(`[Step 1c] No cluster names in CLUSTERS_CONFIGURATION, trying to extract from description...`);
+              debugLog('[Step 1c] No cluster names in CLUSTERS_CONFIGURATION, trying to extract from description...');
 
               // Extract cluster names from lines like "kmanohar-hubf26 - Deploy Job (SUCCESS)"
               const descText = buildInfo.description
@@ -4164,25 +4269,25 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
 
               switch (numPaths) {
                 case 4:
-                  clusterNames = ["hub", "hub_1", "vmware_one", "vmware_two"];
-                  clusterRoles = ["hub", "hub-passive", "primary", "secondary"];
-                  debugLog(`[Step 1c] Using 4-cluster default: hub, hub_1, vmware_one, vmware_two`);
+                  clusterNames = ['hub', 'hub_1', 'vmware_one', 'vmware_two'];
+                  clusterRoles = ['hub', 'hub-passive', 'primary', 'secondary'];
+                  debugLog('[Step 1c] Using 4-cluster default: hub, hub_1, vmware_one, vmware_two');
                   break;
                 case 3:
-                  clusterNames = ["hub", "vmware_one", "vmware_two"];
-                  clusterRoles = ["hub", "primary", "secondary"];
-                  debugLog(`[Step 1c] Using 3-cluster default: hub, vmware_one, vmware_two`);
+                  clusterNames = ['hub', 'vmware_one', 'vmware_two'];
+                  clusterRoles = ['hub', 'primary', 'secondary'];
+                  debugLog('[Step 1c] Using 3-cluster default: hub, vmware_one, vmware_two');
                   break;
                 case 2:
-                  clusterNames = ["hub", "vmware_one"];
-                  clusterRoles = ["hub", "primary"];
-                  debugLog(`[Step 1c] Using 2-cluster default: hub, vmware_one`);
+                  clusterNames = ['hub', 'vmware_one'];
+                  clusterRoles = ['hub', 'primary'];
+                  debugLog('[Step 1c] Using 2-cluster default: hub, vmware_one');
                   break;
                 default:
                   // Generic names for any other count
                   for (let i = 0; i < numPaths; i++) {
                     clusterNames.push(`cluster_${i}`);
-                    clusterRoles.push("unknown");
+                    clusterRoles.push('unknown');
                   }
                   debugLog(`[Step 1c] Using generic names: ${clusterNames.join(', ')}`);
                   break;
@@ -4191,18 +4296,93 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
 
             // Show summary of extracted URLs
             if (Object.keys(extractedUrls).length > 0) {
-              debugLog(`[Step 1c] 📋 Console URL Summary:`);
+              debugLog('[Step 1c] 📋 Console URL Summary:');
               for (const [clusterName, url] of Object.entries(extractedUrls)) {
                 debugLog(`[Step 1c]   • ${clusterName} → ${url}`);
               }
             } else {
-              debugLog(`[Step 1c] ⚠️  No console URLs extracted - will use default domain for all clusters`);
+              debugLog('[Step 1c] ⚠️  No console URLs extracted - will use default domain for all clusters');
             }
 
             // Parse passwords from description text
-            debugLog(`[Step 1c] Parsing passwords from description text...`);
+            debugLog('[Step 1c] Parsing passwords from description text...');
             const passwordsFromDescription = extractPasswordsFromDescription(buildInfo.description, debugLog);
             debugLog(`[Step 1c] Found ${Object.keys(passwordsFromDescription).length} password(s) in description`);
+
+            // Step 1d: Fetch kubeconfig files
+            debugLog(`[Step 1d] Fetching kubeconfig files for ${kubeconfigPaths.length} cluster(s)...`);
+            debugLog(`[Step 1d] Kubeconfig paths found: ${kubeconfigPaths.join(', ')}`);
+            const kubeconfigContents = {};
+
+            for (let i = 0; i < kubeconfigPaths.length; i++) {
+              const path = kubeconfigPaths[i];
+              const clusterName = clusterNames[i] || `cluster-${i}`;
+
+              // Declare kubeconfigUrl at the top of the loop so it's accessible in catch block
+              let kubeconfigUrl;
+
+              try {
+                // Determine if this is a Jenkins artifact path or an external URL
+                if (path.startsWith('http://') || path.startsWith('https://')) {
+                  // External URL - use directly and append /kubeconfig
+                  kubeconfigUrl = `${path}/kubeconfig`;
+                  debugLog(`[Step 1d]   [${i+1}/${kubeconfigPaths.length}] Cluster: ${clusterName}`);
+                  debugLog('[Step 1d]   → External URL detected');
+                  debugLog(`[Step 1d]   → Full URL: ${kubeconfigUrl}`);
+                } else {
+                  // Jenkins artifact path - prepend baseUrl/artifact/
+                  kubeconfigUrl = `${baseUrl}/artifact/${path}/kubeconfig`;
+                  debugLog(`[Step 1d]   [${i+1}/${kubeconfigPaths.length}] Cluster: ${clusterName}`);
+                  debugLog('[Step 1d]   → Jenkins artifact detected');
+                  debugLog(`[Step 1d]   → Artifact path: ${path}`);
+                  debugLog(`[Step 1d]   → Full URL: ${kubeconfigUrl}`);
+                }
+
+                const kubeconfigResponse = await corsFetch(kubeconfigUrl, { headers });
+                debugLog(`[Step 1d]   → Response: ${kubeconfigResponse.status} ${kubeconfigResponse.statusText}`);
+
+                if (kubeconfigResponse.ok) {
+                  const kubeconfigContent = await kubeconfigResponse.text();
+
+                  // Validate that it's actually a kubeconfig (should contain "apiVersion" or "kind: Config")
+                  if (kubeconfigContent.includes('apiVersion') || kubeconfigContent.includes('kind: Config')) {
+                    kubeconfigContents[clusterName.toLowerCase()] = {
+                      content: kubeconfigContent,
+                      url: kubeconfigUrl
+                    };
+                    debugLog(`[Step 1d]   ✅ Retrieved valid kubeconfig for ${clusterName} (${kubeconfigContent.length} bytes)`);
+                  } else {
+                    debugLog('[Step 1d]   ⚠️ Content doesn\'t look like a kubeconfig (missing apiVersion/kind)');
+                    debugLog(`[Step 1d]   → Preview: ${kubeconfigContent.substring(0, 100)}...`);
+                  }
+                } else {
+                  debugLog(`[Step 1d]   ⚠️ Failed to fetch kubeconfig (HTTP ${kubeconfigResponse.status})`);
+                  const errorText = await kubeconfigResponse.text();
+                  if (errorText && errorText.length < 200) {
+                    debugLog(`[Step 1d]   → Error: ${errorText}`);
+                  }
+                }
+              } catch (e) {
+                debugLog(`[Step 1d]   ❌ Error fetching kubeconfig: ${e.message}`);
+
+                // If fetch failed (likely CORS), store the URL anyway so user can open it manually
+                if (e.message === 'Failed to fetch') {
+                  kubeconfigContents[clusterName.toLowerCase()] = {
+                    url: kubeconfigUrl,
+                    corsBlocked: true
+                  };
+                  debugLog('[Step 1d]   → Stored kubeconfig URL for manual access (CORS blocked)');
+                }
+              }
+              debugLog('');
+            }
+
+            debugLog('[Step 1d] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            debugLog(`[Step 1d] SUMMARY: Retrieved ${Object.keys(kubeconfigContents).length}/${kubeconfigPaths.length} kubeconfig file(s)`);
+            if (Object.keys(kubeconfigContents).length > 0) {
+              debugLog(`[Step 1d] Available for clusters: ${Object.keys(kubeconfigContents).join(', ')}`);
+            }
+            debugLog('');
 
             // Create clusters using passwords from description
             const extractedClusters = createClustersWithPasswords(
@@ -4212,30 +4392,31 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
               jenkinsUrl,
               debugLog,
               customGroupName,
-              extractedUrls  // Pass the extracted console URLs
+              extractedUrls,  // Pass the extracted console URLs
+              kubeconfigContents  // Pass the kubeconfig contents
             );
 
             if (extractedClusters.length > 0) {
               debugLog(`[Step 1c] ✅ Successfully extracted ${extractedClusters.length} cluster(s) with passwords from description!`);
               allClusters.push(...extractedClusters);
             } else {
-              debugLog(`[Step 1c] ⚠️ Could not find passwords in description text`);
-              debugLog(`[Step 1c] Checked for patterns like "Password: xxxx" near cluster names`);
-              debugLog(`[Step 1c] If passwords exist in description, the format may be different`);
-              debugLog(`[Step 1c] ✅ Alternative: Use "Paste JSON Directly" above`);
+              debugLog('[Step 1c] ⚠️ Could not find passwords in description text');
+              debugLog('[Step 1c] Checked for patterns like "Password: xxxx" near cluster names');
+              debugLog('[Step 1c] If passwords exist in description, the format may be different');
+              debugLog('[Step 1c] ✅ Alternative: Use "Paste JSON Directly" above');
             }
           } else {
-            debugLog(`[Step 1c] ⚠️ No kubeconfig paths found in build description`);
+            debugLog('[Step 1c] ⚠️ No kubeconfig paths found in build description');
           }
         } else {
-          debugLog(`[Step 1c] ⚠️ No description field in build info`);
+          debugLog('[Step 1c] ⚠️ No description field in build info');
         }
 
-        debugLog("");
+        debugLog('');
 
         // Step 2: Check for artifacts that might contain cluster info
         if (buildInfo.artifacts && buildInfo.artifacts.length > 0) {
-          showImportStatus("info", `📦 Found ${buildInfo.artifacts.length} artifact(s), checking for cluster data...`);
+          showImportStatus('info', `📦 Found ${buildInfo.artifacts.length} artifact(s), checking for cluster data...`);
           debugLog(`[Step 2] Found ${buildInfo.artifacts.length} artifact(s):`);
 
           for (const artifact of buildInfo.artifacts) {
@@ -4271,7 +4452,7 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
                 debugLog(`[Step 2] ❌ Error fetching artifact ${artifact.fileName}: ${e.message}`);
               }
             } else {
-              debugLog(`     → Skipped (not a credential file)`);
+              debugLog('     → Skipped (not a credential file)');
             }
           }
         }
@@ -4281,11 +4462,11 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
     } catch (e) {
       debugLog(`[Step 1] ❌ Error fetching via API: ${e.message}`);
       if (e.name === 'TypeError') {
-        debugLog(`[Step 1] ⚠️ Network error - Jenkins may be unreachable or authentication required`);
+        debugLog('[Step 1] ⚠️ Network error - Jenkins may be unreachable or authentication required');
       }
     }
 
-    debugLog("");
+    debugLog('');
 
     // Remove duplicates based on URL
     const seen = new Set();
@@ -4298,7 +4479,7 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
       return true;
     });
 
-    debugLog("");
+    debugLog('');
     debugLog(`[Summary] Total credentials found: ${allClusters.length}`);
     debugLog(`[Summary] Unique OpenShift clusters: ${uniqueClusters.length}`);
     debugLog(`[Summary] Duplicates removed: ${allClusters.length - uniqueClusters.length}`);
@@ -4307,40 +4488,40 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
       // Provide more helpful error message
       const totalFound = allClusters.length;
 
-      debugLog("");
-      debugLog(`[Result] ❌ NO CLUSTERS IMPORTED`);
+      debugLog('');
+      debugLog('[Result] ❌ NO CLUSTERS IMPORTED');
       if (totalFound > 0) {
         debugLog(`[Result] Found ${totalFound} credential(s) but they were all filtered out`);
-        debugLog(`[Result] This means the URLs didn't match OpenShift patterns`);
-        showImportStatus("error", `❌ Found ${totalFound} credential(s) but they were filtered out (not OpenShift clusters). ${debugMode ? 'Check debug output above' : 'Enable debug mode to see details'}.`);
+        debugLog('[Result] This means the URLs didn\'t match OpenShift patterns');
+        showImportStatus('error', `❌ Found ${totalFound} credential(s) but they were filtered out (not OpenShift clusters). ${debugMode ? 'Check debug output above' : 'Enable debug mode to see details'}.`);
       } else {
-        debugLog(`[Result] No credentials found at all`);
-        debugLog(`[Result] Searched entire Jenkins JSON but couldn't find passwords`);
-        debugLog(`[Result] Most likely reasons:`);
-        debugLog(`  → Passwords stored in separate files (not in API response)`);
-        debugLog(`  → Passwords in environment variables not exposed via API`);
-        debugLog(`  → Job hasn't completed or credentials not generated yet`);
-        debugLog(``);
-        debugLog(`[Result] ✅ EASY FIX - Use "Paste JSON Directly" above:`);
-        debugLog(`  1. Run: ~/download_kubeconfig_rdr.sh.3 4073`);
-        debugLog(`  2. Open: ~/OCS4/autologin/clusters.json`);
-        debugLog(`  3. Copy all JSON content`);
-        debugLog(`  4. Paste in "Paste JSON Directly" section above`);
-        debugLog(`  5. Click "✨ Import JSON" - Done!`);
-        debugLog("");
-        debugLog(`[Workaround] Use "Paste Console Output Directly" below:`);
-        debugLog(`  1. Open Jenkins job in browser`);
-        debugLog(`  2. Click "Console Output"`);
-        debugLog(`  3. Copy the full output`);
-        debugLog(`  4. Paste in the textarea below and click "Parse Console Output"`);
-        showImportStatus("error", `❌ No passwords found in Jenkins API response. ${debugMode ? 'Check debug output above for what was searched.' : 'Enable debug mode to see details.'} Use "Paste JSON Directly" instead!`);
+        debugLog('[Result] No credentials found at all');
+        debugLog('[Result] Searched entire Jenkins JSON but couldn\'t find passwords');
+        debugLog('[Result] Most likely reasons:');
+        debugLog('  → Passwords stored in separate files (not in API response)');
+        debugLog('  → Passwords in environment variables not exposed via API');
+        debugLog('  → Job hasn\'t completed or credentials not generated yet');
+        debugLog('');
+        debugLog('[Result] ✅ EASY FIX - Use "Paste JSON Directly" above:');
+        debugLog('  1. Run: ~/download_kubeconfig_rdr.sh.3 4073');
+        debugLog('  2. Open: ~/OCS4/autologin/clusters.json');
+        debugLog('  3. Copy all JSON content');
+        debugLog('  4. Paste in "Paste JSON Directly" section above');
+        debugLog('  5. Click "✨ Import JSON" - Done!');
+        debugLog('');
+        debugLog('[Workaround] Use "Paste Console Output Directly" below:');
+        debugLog('  1. Open Jenkins job in browser');
+        debugLog('  2. Click "Console Output"');
+        debugLog('  3. Copy the full output');
+        debugLog('  4. Paste in the textarea below and click "Parse Console Output"');
+        showImportStatus('error', `❌ No passwords found in Jenkins API response. ${debugMode ? 'Check debug output above for what was searched.' : 'Enable debug mode to see details.'} Use "Paste JSON Directly" instead!`);
       }
       btn.disabled = false;
-      btn.textContent = "🔄 Fetch from Jenkins";
+      btn.textContent = '🔄 Fetch from Jenkins';
       return;
     }
 
-    debugLog("");
+    debugLog('');
     debugLog(`[Result] ✅ SUCCESS - ${uniqueClusters.length} cluster(s) ready to import`);
 
     // Show preview
@@ -4348,25 +4529,25 @@ document.getElementById("fetch-jenkins-btn").addEventListener("click", async () 
     // Status is set inside showPreview()
 
   } catch (error) {
-    console.error("Jenkins fetch error:", error);
+    console.error('Jenkins fetch error:', error);
 
     // Provide helpful error message based on error type
     if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-      showImportStatus("error", "❌ Failed to connect to Jenkins - check if the URL is correct and the server is accessible");
+      showImportStatus('error', '❌ Failed to connect to Jenkins - check if the URL is correct and the server is accessible');
       debugLog(`[Error] Network error: ${error.message}`);
-      debugLog(`[Error] This usually means:`);
-      debugLog(`  → Invalid URL or hostname`);
-      debugLog(`  → Jenkins server is down or unreachable`);
-      debugLog(`  → CORS blocking the request`);
-      debugLog(`  → Network firewall or VPN issue`);
-    } else if (error.name === 'TypeError' || error.message.includes("NetworkError")) {
-      showImportStatus("error", "❌ Network error - unable to reach Jenkins server. Check URL and try again.");
+      debugLog('[Error] This usually means:');
+      debugLog('  → Invalid URL or hostname');
+      debugLog('  → Jenkins server is down or unreachable');
+      debugLog('  → CORS blocking the request');
+      debugLog('  → Network firewall or VPN issue');
+    } else if (error.name === 'TypeError' || error.message.includes('NetworkError')) {
+      showImportStatus('error', '❌ Network error - unable to reach Jenkins server. Check URL and try again.');
     } else {
-      showImportStatus("error", `❌ Failed to fetch from Jenkins: ${error.message}`);
+      showImportStatus('error', `❌ Failed to fetch from Jenkins: ${error.message}`);
     }
   } finally {
     btn.disabled = false;
-    btn.textContent = "🔄 Fetch from Jenkins";
+    btn.textContent = '🔄 Fetch from Jenkins';
   }
 });
 
@@ -4381,7 +4562,7 @@ function extractPasswordsFromDescription(htmlDescription, debugLog = console.log
     .replace(/&nbsp;/g, ' ')         // Replace &nbsp;
     .trim();
 
-  debugLog(`[Password Parser] Searching description text for password patterns...`);
+  debugLog('[Password Parser] Searching description text for password patterns...');
   debugLog(`[Password Parser] Description has ${text.length} chars, ${text.split('\n').length} lines`);
 
   // Split into lines for easier parsing
@@ -4393,7 +4574,7 @@ function extractPasswordsFromDescription(htmlDescription, debugLog = console.log
   for (let i = 0; i < nonEmptyLines.length; i++) {
     debugLog(`  [${i}] ${nonEmptyLines[i]}`);
   }
-  debugLog(``);
+  debugLog('');
 
   // Pattern 1: Look for "Password: xxxx" format
   for (let i = 0; i < lines.length; i++) {
@@ -4401,7 +4582,7 @@ function extractPasswordsFromDescription(htmlDescription, debugLog = console.log
 
     // Match various password formats: Password:, Pass:, pwd:, Pwd:
     // Allow more characters in password: alphanumeric, dash, underscore, special chars
-    const passwordMatch = line.match(/(?:Password|Pass|Pwd):\s*([A-Za-z0-9@#$%^&*()_+=\[\]{};:'"<>,.?/\\|-]+)/i);
+    const passwordMatch = line.match(/(?:Password|Pass|Pwd):\s*([A-Za-z0-9@#$%^&*()_+=[\]{};:'"<>,.?/\\|-]+)/i);
     if (passwordMatch) {
       const password = passwordMatch[1];
 
@@ -4455,7 +4636,7 @@ function extractPasswordsFromDescription(htmlDescription, debugLog = console.log
       // Check next few lines for password
       for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
         const nextLine = lines[j].trim();
-        const pwMatch = nextLine.match(/(?:Password|Pass|Pwd):\s*([A-Za-z0-9@#$%^&*()_+=\[\]{};:'"<>,.?/\\|-]+)/i);
+        const pwMatch = nextLine.match(/(?:Password|Pass|Pwd):\s*([A-Za-z0-9@#$%^&*()_+=[\]{};:'"<>,.?/\\|-]+)/i);
         if (pwMatch) {
           const password = pwMatch[1];
 
@@ -4504,8 +4685,8 @@ function extractPasswordsFromDescription(htmlDescription, debugLog = console.log
     }
   }
 
-  debugLog(``);
-  debugLog(`[Password Parser] SUMMARY:`);
+  debugLog('');
+  debugLog('[Password Parser] SUMMARY:');
   debugLog(`[Password Parser] Total passwords found: ${Object.keys(passwords).length}`);
   for (const [name, pwd] of Object.entries(passwords)) {
     debugLog(`  ✅ ${name} → ${'*'.repeat(pwd.length)}`);
@@ -4515,9 +4696,9 @@ function extractPasswordsFromDescription(htmlDescription, debugLog = console.log
 }
 
 // ── Create clusters using extracted passwords ────
-function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenkinsUrl, debugLog = console.log, customGroupName = '', extractedUrls = {}) {
+function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenkinsUrl, debugLog = console.log, customGroupName = '', extractedUrls = {}, kubeconfigContents = {}) {
   const results = [];
-  const jobIdMatch = jenkinsUrl.match(/\/job\/([^\/]+)\/(\d+)/);
+  const jobIdMatch = jenkinsUrl.match(/\/job\/([^/]+)\/(\d+)/);
   const autoGroupId = jobIdMatch ? jobIdMatch[2] : null;
 
   // Use custom group name if provided, otherwise use auto-detected job ID
@@ -4526,6 +4707,7 @@ function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenk
   debugLog(`[Cluster Builder] Creating ${clusterNames.length} cluster(s) with passwords...`);
   debugLog(`[Cluster Builder] Expected clusters: ${clusterNames.join(', ')}`);
   debugLog(`[Cluster Builder] Available passwords: ${Object.keys(passwords).join(', ')}`);
+  debugLog(`[Cluster Builder] Available kubeconfigs: ${Object.keys(kubeconfigContents).join(', ')}`);
 
   if (Object.keys(extractedUrls).length > 0) {
     debugLog(`[Cluster Builder] 📍 Console URLs available for ${Object.keys(extractedUrls).length} cluster(s):`);
@@ -4533,7 +4715,7 @@ function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenk
       debugLog(`[Cluster Builder]   ✅ ${name} → ${url}`);
     }
   } else {
-    debugLog(`[Cluster Builder] ⚠️  No console URLs extracted - will construct URLs with default domain`);
+    debugLog('[Cluster Builder] ⚠️  No console URLs extracted - will construct URLs with default domain');
   }
 
   if (customGroupName) {
@@ -4541,7 +4723,7 @@ function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenk
   } else if (autoGroupId) {
     debugLog(`[Cluster Builder] Using auto-detected group ID: "${autoGroupId}"`);
   }
-  debugLog(``);
+  debugLog('');
 
   for (let i = 0; i < clusterNames.length; i++) {
     const clusterName = clusterNames[i];
@@ -4595,7 +4777,7 @@ function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenk
       debugLog(`  → Console URL: ${consoleUrl}`);
       debugLog(`  → Source: ${urlSource}`);
       if (!urlSource.startsWith('extracted')) {
-        debugLog(`  ⚠️  Using default domain - no URL found in: CLUSTERS_CONFIGURATION, description, or environment variables`);
+        debugLog('  ⚠️  Using default domain - no URL found in: CLUSTERS_CONFIGURATION, description, or environment variables');
         debugLog(`  →  Available extracted URLs: ${Object.keys(extractedUrls).join(', ') || 'none'}`);
       }
 
@@ -4611,23 +4793,52 @@ function createClustersWithPasswords(clusterNames, clusterRoles, passwords, jenk
         cluster.group = groupId;
       }
 
+      // Add kubeconfig if available
+      const kubeconfigKey = lowerName;
+      const kubeconfigKeyDash = lowerName.replace(/_/g, '-');
+      const kubeconfigKeyUnderscore = lowerName.replace(/-/g, '_');
+
+      let kubeconfig = kubeconfigContents[kubeconfigKey] ||
+                       kubeconfigContents[kubeconfigKeyDash] ||
+                       kubeconfigContents[kubeconfigKeyUnderscore];
+
+      if (kubeconfig) {
+        // Handle both direct content and URL-only kubeconfig
+        if (kubeconfig.content) {
+          // We have the actual content
+          cluster.kubeconfig = kubeconfig.content;
+          cluster.kubeconfigUrl = kubeconfig.url;
+          debugLog(`  ✅ Added kubeconfig (${kubeconfig.content.length} bytes)`);
+        } else if (kubeconfig.url) {
+          // Only have URL (CORS blocked)
+          cluster.kubeconfigUrl = kubeconfig.url;
+          debugLog('  ✅ Added kubeconfig URL (CORS blocked - will open in browser)');
+        } else if (typeof kubeconfig === 'string') {
+          // Legacy: direct string content
+          cluster.kubeconfig = kubeconfig;
+          debugLog(`  ✅ Added kubeconfig (${kubeconfig.length} bytes)`);
+        }
+      } else {
+        debugLog(`  ⚠️  No kubeconfig available for ${clusterName}`);
+      }
+
       results.push(cluster);
       debugLog(`  ✅ Created cluster: ${clusterName} [${clusterRole}]`);
     } else {
       debugLog(`  ⚠️ No password found for: ${clusterName}`);
     }
 
-    debugLog(``);
+    debugLog('');
   }
 
-  debugLog(`[Cluster Builder] FINAL SUMMARY:`);
+  debugLog('[Cluster Builder] FINAL SUMMARY:');
   debugLog(`[Cluster Builder] Successfully created: ${results.length}/${clusterNames.length} cluster(s)`);
   if (results.length < clusterNames.length) {
     const missingClusters = clusterNames.filter(name =>
       !results.some(r => r.name === name)
     );
     debugLog(`[Cluster Builder] ❌ Missing passwords for: ${missingClusters.join(', ')}`);
-    debugLog(`[Cluster Builder] Check if cluster names in description match expected names above`);
+    debugLog('[Cluster Builder] Check if cluster names in description match expected names above');
   }
 
   return results;
@@ -4638,38 +4849,47 @@ function extractKubeconfigPaths(htmlDescription, debugLog = console.log) {
   // Parse HTML to find links containing "/kubeconfig"
   // Similar to bash script: grep "/kubeconfig"
 
-  // Strip HTML tags and extract text
-  const text = htmlDescription
-    .replace(/>/g, '>\n')
-    .replace(/</g, '\n<')
-    .split('\n')
-    .filter(line => !line.trim().startsWith('<') && line.trim().length > 0)
-    .join(' ');
+  debugLog('[Path Extractor] Searching for kubeconfig paths in description...');
 
-  debugLog(`[Path Extractor] Searching for kubeconfig paths in description...`);
-
-  // Find all paths that contain "/kubeconfig"
   const paths = [];
-  const regex = /(https?:\/\/[^\s"'<>]+\/kubeconfig)/gi;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const fullPath = match[1];
-    // Extract the path up to (but not including) "/kubeconfig"
-    const basePath = fullPath.replace(/\/kubeconfig$/, '');
-    if (!paths.includes(basePath)) {
-      paths.push(basePath);
-      debugLog(`[Path Extractor] Found: ${basePath}`);
-    }
-  }
 
-  // Also try to find paths in href attributes
-  const hrefRegex = /href=["']([^"']+\/kubeconfig)["']/gi;
+  // Pattern 1: Find relative paths in href attributes (most common)
+  // Example: href="artifact/openshift-clusters/hub/kubeconfig"
+  const hrefRegex = /href=["'](?:artifact\/)?([^"']+\/kubeconfig)["']/gi;
+  let match;
   while ((match = hrefRegex.exec(htmlDescription)) !== null) {
-    const fullPath = match[1];
+    let fullPath = match[1];
+
+    // Remove leading "artifact/" if present
+    fullPath = fullPath.replace(/^artifact\//, '');
+
+    // Remove trailing "/kubeconfig" to get the base path
     const basePath = fullPath.replace(/\/kubeconfig$/, '');
+
     if (!paths.includes(basePath)) {
       paths.push(basePath);
       debugLog(`[Path Extractor] Found (href): ${basePath}`);
+    }
+  }
+
+  // Pattern 2: Find absolute URLs with /kubeconfig
+  const absoluteRegex = /(https?:\/\/[^\s"'<>]+\/kubeconfig)/gi;
+  while ((match = absoluteRegex.exec(htmlDescription)) !== null) {
+    const fullPath = match[1];
+    const basePath = fullPath.replace(/\/kubeconfig$/, '');
+    if (!paths.includes(basePath)) {
+      paths.push(basePath);
+      debugLog(`[Path Extractor] Found (absolute URL): ${basePath}`);
+    }
+  }
+
+  // Pattern 3: Find paths in plain text (openshift-clusters/*/kubeconfig pattern)
+  const plainTextRegex = /(openshift-clusters\/[^/\s]+)\/kubeconfig/gi;
+  while ((match = plainTextRegex.exec(htmlDescription)) !== null) {
+    const basePath = match[1];
+    if (!paths.includes(basePath)) {
+      paths.push(basePath);
+      debugLog(`[Path Extractor] Found (plain text): ${basePath}`);
     }
   }
 
@@ -4683,14 +4903,14 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
   const results = [];
 
   // Extract Jenkins job ID from URL for grouping
-  const jobIdMatch = jenkinsUrl.match(/\/job\/([^\/]+)\/(\d+)/);
+  const jobIdMatch = jenkinsUrl.match(/\/job\/([^/]+)\/(\d+)/);
   const groupId = jobIdMatch ? `${jobIdMatch[1]}-${jobIdMatch[2]}` : null;
 
   debugLog(`[Param Parser] Parsing ${Object.keys(params).length} parameters for cluster credentials...`);
 
   // Special handling for CLUSTERS_CONFIGURATION JSON parameter (common in QE jobs)
   if (params.CLUSTERS_CONFIGURATION) {
-    debugLog(`[Param Parser] Found CLUSTERS_CONFIGURATION parameter`);
+    debugLog('[Param Parser] Found CLUSTERS_CONFIGURATION parameter');
     debugLog(`[Param Parser] Raw value length: ${params.CLUSTERS_CONFIGURATION.length} chars`);
     debugLog(`[Param Parser] First 200 chars: ${params.CLUSTERS_CONFIGURATION.substring(0, 200)}`);
     debugLog(`[Param Parser] Last 100 chars: ${params.CLUSTERS_CONFIGURATION.substring(Math.max(0, params.CLUSTERS_CONFIGURATION.length - 100))}`);
@@ -4704,7 +4924,7 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
       const isYaml = /^[\s"']*-\s+CLUSTER_NAME:/i.test(configStr);
 
       if (isYaml) {
-        debugLog(`[Param Parser] Detected YAML format`);
+        debugLog('[Param Parser] Detected YAML format');
 
         // Simple YAML parsing - extract CLUSTER_NAME fields
         // Match lines like: "- CLUSTER_NAME: dnd-jijoy-h135" or "  CLUSTER_NAME: hub"
@@ -4720,9 +4940,9 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
           debugLog(`[Param Parser] Extracted ${clusterNames.length} cluster name(s) from YAML: ${clusterNames.join(', ')}`);
           // Don't parse passwords from params - they're in description
           // Just return empty for now, description parsing will handle it
-          debugLog(`[Param Parser] YAML doesn't contain passwords, will use description parsing`);
+          debugLog('[Param Parser] YAML doesn\'t contain passwords, will use description parsing');
         } else {
-          debugLog(`[Param Parser] No CLUSTER_NAME fields found in YAML`);
+          debugLog('[Param Parser] No CLUSTER_NAME fields found in YAML');
         }
 
         // Return empty - let description parsing handle this
@@ -4730,7 +4950,7 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
 
       } else {
         // JSON format - try to parse
-        debugLog(`[Param Parser] Attempting JSON parse`);
+        debugLog('[Param Parser] Attempting JSON parse');
 
         // Jenkins sometimes wraps JSON in multiple layers of quotes: """[...]""" or """"""[...]""""""
         // Find where the actual JSON starts and ends (should begin with [ or { and end with ] or })
@@ -4764,13 +4984,13 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
       debugLog(`[Param Parser] Successfully parsed CLUSTERS_CONFIGURATION: ${clustersConfig.length} cluster(s)`);
 
       for (const clusterObj of clustersConfig) {
-        debugLog(`[Param Parser] Processing cluster config:`);
+        debugLog('[Param Parser] Processing cluster config:');
         debugLog(`  - CLUSTER_NAME: ${clusterObj.CLUSTER_NAME || 'N/A'}`);
         debugLog(`  - CLUSTER_TYPE: ${clusterObj.CLUSTER_TYPE || 'N/A'}`);
 
         // Try to find credentials in the cluster object
-        const name = clusterObj.CLUSTER_NAME || clusterObj.name || "Cluster";
-        const clusterType = clusterObj.CLUSTER_TYPE || clusterObj.type || "";
+        const name = clusterObj.CLUSTER_NAME || clusterObj.name || 'Cluster';
+        const clusterType = clusterObj.CLUSTER_TYPE || clusterObj.type || '';
 
         // Check multiple possible field names for credentials
         const rawUrl = clusterObj.CONSOLE_URL || clusterObj.console_url ||
@@ -4818,17 +5038,17 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
             debugLog(`  ❌ Filtered out (not OpenShift): ${url}`);
           }
         } else {
-          debugLog(`  ⚠️ Incomplete credentials in CLUSTERS_CONFIGURATION object`);
+          debugLog('  ⚠️ Incomplete credentials in CLUSTERS_CONFIGURATION object');
         }
       }
 
       if (results.length > 0) {
         debugLog(`[Param Parser] Extracted ${results.length} cluster(s) from CLUSTERS_CONFIGURATION`);
-        debugLog("");
+        debugLog('');
         return results;
       } else {
-        debugLog(`[Param Parser] No complete credentials found in CLUSTERS_CONFIGURATION objects`);
-        debugLog(`[Param Parser] Will continue checking for KEY=VALUE style parameters...`);
+        debugLog('[Param Parser] No complete credentials found in CLUSTERS_CONFIGURATION objects');
+        debugLog('[Param Parser] Will continue checking for KEY=VALUE style parameters...');
       }
     } catch (e) {
       debugLog(`[Param Parser] Failed to parse CLUSTERS_CONFIGURATION as JSON: ${e.message}`);
@@ -4837,18 +5057,18 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
       // Check if the value looks truncated (doesn't end with closing bracket)
       const configStr = params.CLUSTERS_CONFIGURATION.trim();
       if (!configStr.endsWith(']') && !configStr.endsWith('}')) {
-        debugLog(`[Param Parser] ⚠️ CLUSTERS_CONFIGURATION appears to be TRUNCATED by Jenkins API`);
+        debugLog('[Param Parser] ⚠️ CLUSTERS_CONFIGURATION appears to be TRUNCATED by Jenkins API');
         debugLog(`[Param Parser] Value ends with: "${configStr.substring(configStr.length - 20)}"`);
-        debugLog(`[Param Parser] Expected it to end with ] or }`);
-        debugLog(`[Param Parser] This is a known Jenkins API limitation for long parameters`);
-        debugLog(`[Param Parser] WORKAROUND: Check for artifacts or use console output paste`);
+        debugLog('[Param Parser] Expected it to end with ] or }');
+        debugLog('[Param Parser] This is a known Jenkins API limitation for long parameters');
+        debugLog('[Param Parser] WORKAROUND: Check for artifacts or use console output paste');
       }
 
-      debugLog(`[Param Parser] Will continue checking for KEY=VALUE style parameters...`);
+      debugLog('[Param Parser] Will continue checking for KEY=VALUE style parameters...');
     }
   }
 
-  debugLog("");
+  debugLog('');
 
   // Find cluster prefixes by looking for URL fields
   const prefixes = new Set();
@@ -4904,12 +5124,12 @@ function parseJenkinsParameters(params, jenkinsUrl, debugLog = console.log) {
         debugLog(`  ❌ Filtered out (not OpenShift): ${url}`);
       }
     } else {
-      debugLog(`  ⚠️ Incomplete credentials - skipped`);
+      debugLog('  ⚠️ Incomplete credentials - skipped');
     }
   }
 
   debugLog(`[Param Parser] Result: ${results.length} cluster(s) extracted from parameters`);
-  debugLog("");
+  debugLog('');
 
   return results;
 }
@@ -4982,7 +5202,7 @@ function isOpenShiftClusterURL(url) {
 
 // ── Parse artifact content (JSON/YAML/ENV files) ──────
 function parseArtifactContent(content, fileName, jenkinsUrl, debugLog = console.log) {
-  const jobIdMatch = jenkinsUrl.match(/\/job\/([^\/]+)\/(\d+)/);
+  const jobIdMatch = jenkinsUrl.match(/\/job\/([^/]+)\/(\d+)/);
   const groupId = jobIdMatch ? `${jobIdMatch[1]}-${jobIdMatch[2]}` : null;
 
   let clusters = [];
@@ -5046,17 +5266,17 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
   const clusters = [];
 
   // Extract Jenkins job ID from URL for grouping
-  const jobIdMatch = jenkinsUrl.match(/\/job\/([^\/]+)\/(\d+)/);
+  const jobIdMatch = jenkinsUrl.match(/\/job\/([^/]+)\/(\d+)/);
   const groupId = jobIdMatch ? `${jobIdMatch[1]}-${jobIdMatch[2]}` : null;
 
-  debugLog(`[Parser] Starting to parse console output...`);
+  debugLog('[Parser] Starting to parse console output...');
   debugLog(`[Parser] Job ID: ${groupId || 'N/A'}`);
 
   // Common patterns for cluster credentials in Jenkins output
   const patterns = [
     // Pattern 1: KEY=VALUE format (like .env) - case insensitive, more flexible
     {
-      name: "env-vars",
+      name: 'env-vars',
       parse: (text) => {
         const vars = {};
         const lines = text.split('\n');
@@ -5122,12 +5342,12 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
 
     // Pattern 2: JSON blocks in output (nested support)
     {
-      name: "json-blocks",
+      name: 'json-blocks',
       parse: (text) => {
         const results = [];
 
         // Try to find JSON arrays or objects
-        const jsonBlockRegex = /[\[{][\s\S]*?[\]}]/g;
+        const jsonBlockRegex = /[[{][\s\S]*?[\]}]/g;
         const matches = text.match(jsonBlockRegex) || [];
 
         for (const match of matches) {
@@ -5140,7 +5360,7 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
                 const rawUrl = obj.url || obj.console_url || obj.consoleUrl || obj.api_url;
                 const user = obj.user || obj.username || obj.admin || obj.admin_user;
                 const password = obj.password || obj.pass || obj.pwd || obj.admin_password;
-                const name = obj.name || obj.cluster_name || obj.clusterName || "Cluster";
+                const name = obj.name || obj.cluster_name || obj.clusterName || 'Cluster';
 
                 const url = normalizeURL(rawUrl);
 
@@ -5168,7 +5388,7 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
 
     // Pattern 3: Table-like output
     {
-      name: "table-format",
+      name: 'table-format',
       parse: (text) => {
         const results = [];
 
@@ -5201,20 +5421,20 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
 
     // Pattern 4: Common script output formats
     {
-      name: "script-output",
+      name: 'script-output',
       parse: (text) => {
         const results = [];
 
         // Look for echo/print statements with credentials
         // e.g., "Login to https://... with admin / password123"
-        const loginRegex = /(?:login to|access|connect to|url is)\s+(https?:\/\/[^\s]+).*?(?:with|using|user|username)\s+([^\s\/]+)\s*[\/]\s*([^\s]+)/gi;
+        const loginRegex = /(?:login to|access|connect to|url is)\s+(https?:\/\/[^\s]+).*?(?:with|using|user|username)\s+([^\s/]+)\s*[/]\s*([^\s]+)/gi;
 
         let match;
         while ((match = loginRegex.exec(text)) !== null) {
           const url = normalizeURL(match[1].trim());
           if (isOpenShiftClusterURL(url)) {
             const cluster = {
-              name: "Cluster",
+              name: 'Cluster',
               url: url,
               user: match[2].trim(),
               password: match[3].trim()
@@ -5233,7 +5453,7 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
   ];
 
   debugLog(`[Parser] Trying ${patterns.length} parsing patterns...`);
-  debugLog("");
+  debugLog('');
 
   // Try each pattern
   for (const pattern of patterns) {
@@ -5254,7 +5474,7 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
     }
   }
 
-  debugLog("");
+  debugLog('');
 
   // Remove duplicates based on URL
   const seen = new Set();
@@ -5271,34 +5491,36 @@ function parseJenkinsConsoleOutput(consoleText, jenkinsUrl, debugLog = console.l
 
 
 // ── Export clusters to JSON ───────────────────────────
-document.getElementById("export-btn").addEventListener("click", () => {
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+document.getElementById('export-btn').addEventListener('click', () => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     if (clusters.length === 0) {
-      showImportStatus("error", "❌ No clusters to export.");
+      showImportStatus('error', '❌ No clusters to export.');
       return;
     }
 
-    // Export all fields including role and group
-    const exportData = clusters.map(({ name, url, user, password, role, group }) => {
+    // Export all fields including role, group, kubeconfigUrl
+    const exportData = clusters.map(({ name, url, user, password, role, group, type, kubeconfigUrl }) => {
       const cluster = { name, url, user, password };
+      if (type) cluster.type = type;
       if (role) cluster.role = role;
       if (group) cluster.group = group;
+      if (kubeconfigUrl) cluster.kubeconfigUrl = kubeconfigUrl;
       return cluster;
     });
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = "openshift-clusters.json";
+    a.download = 'openshift-clusters.json';
     a.click();
-    showImportStatus("success", `💾 Exported ${clusters.length} cluster(s).`);
+    showImportStatus('success', `💾 Exported ${clusters.length} cluster(s).`);
   });
 });
 
 // ── Import status ─────────────────────────────────────
 function showImportStatus(type, message) {
-  const el = document.getElementById("import-status");
+  const el = document.getElementById('import-status');
   el.className = `status ${type}`;
   el.textContent = message;
-  if (type === "success") setTimeout(() => { el.style.display = "none"; }, 4000);
+  if (type === 'success') setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
