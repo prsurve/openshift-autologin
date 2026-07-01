@@ -4,12 +4,19 @@
 
 **Perfect for:** QE teams, OpenShift administrators, VMware admins, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-3.1.0-red)
+![Version](https://img.shields.io/badge/version-3.2.0-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v3.1.0:**
+**New in v3.2.0:**
+- 📥 **Kubeconfig Auto-Fetch** - Automatically downloads and saves kubeconfig files during Jenkins import
+- 🔗 **Dual Kubeconfig Access** - Download kubeconfig locally OR open it directly in browser from external servers
+- 💾 **Persistent Storage** - Kubeconfig files saved to Chrome storage for offline access
+- 🎯 **Smart Path Detection** - Automatically detects Jenkins artifacts and external URLs (HTTP/HTTPS)
+- ✅ **Content Validation** - Validates kubeconfig content before saving (checks for apiVersion/kind: Config)
+
+**v3.1.0:**
 - 🛡️ **Jenkins URL Validation** - Invalid Jenkins URLs are now validated before fetch attempt with clear error messages
 - ⚡ **Enhanced Error Handling** - Better error messages for network failures, invalid URLs, and connection issues
 - 📋 **Improved User Feedback** - Detailed toast notifications for all button click errors with actionable messages
@@ -884,6 +891,27 @@ Please open an issue or pull request on GitHub.
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+---
+
+## 🎨 What's New in v3.2.0?
+
+### Kubeconfig Auto-Fetch from Jenkins
+
+v3.2.0 brings **automatic kubeconfig management** - no more manual downloads!
+
+#### Key Features
+- **📥 Auto-Download**: Kubeconfig files automatically fetched during Jenkins import
+- **💾 Persistent Storage**: Saved to Chrome storage for offline access
+- **🔗 Dual Access**: Download locally OR open directly in browser (magna002.ceph.redhat.com)
+- **🎯 Smart Detection**: Handles both Jenkins artifacts and external URLs (HTTP/HTTPS)
+- **✅ Validation**: Checks for valid kubeconfig format before saving
+
+#### How It Works
+1. **Import from Jenkins** - Paste Jenkins URL with cluster details
+2. **Auto-Fetch** - Plugin extracts and downloads kubeconfig files automatically
+3. **Access Anytime** - Click 📥 to download or 🔗 to view in browser
+4. **No Manual Steps** - Everything happens in background!
 
 ---
 
