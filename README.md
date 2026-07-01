@@ -4,12 +4,12 @@
 
 **Perfect for:** QE teams, OpenShift administrators, VMware admins, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-3.2.0-red)
+![Version](https://img.shields.io/badge/version-3.2.1-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v3.2.0:**
+**New in v3.2.1:**
 - 📥 **Kubeconfig Auto-Fetch** - Automatically downloads and saves kubeconfig files during Jenkins import
 - 🔗 **Dual Kubeconfig Access** - Download kubeconfig locally OR open it directly in browser from external servers
 - 💾 **Persistent Storage** - Kubeconfig files saved to Chrome storage for offline access
@@ -894,11 +894,11 @@ MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
-## 🎨 What's New in v3.2.0?
+## 🎨 What's New in v3.2.1?
 
 ### Kubeconfig Auto-Fetch from Jenkins
 
-v3.2.0 brings **automatic kubeconfig management** - no more manual downloads!
+v3.2.1 brings **automatic kubeconfig management** - no more manual downloads!
 
 #### Key Features
 - **📥 Auto-Download**: Kubeconfig files automatically fetched during Jenkins import
