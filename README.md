@@ -4,12 +4,15 @@
 
 **Perfect for:** QE teams, OpenShift administrators, VMware admins, and anyone managing multiple clusters across environments.
 
-![Version](https://img.shields.io/badge/version-3.2.1-red)
+![Version](https://img.shields.io/badge/version-3.2.2-red)
 ![Manifest](https://img.shields.io/badge/manifest-v3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
 
-**New in v3.2.1:**
+**New in v3.2.2:**
+- 🐛 **Cluster Name Fix** - "Save Cluster" modal now correctly detects the cluster name from OpenShift console URLs instead of always showing "console-openshift-console"
+
+**v3.2.1:**
 - 📥 **Kubeconfig Auto-Fetch** - Automatically downloads and saves kubeconfig files during Jenkins import
 - 🔗 **Dual Kubeconfig Access** - Download kubeconfig locally OR open it directly in browser from external servers
 - 💾 **Persistent Storage** - Kubeconfig files saved to Chrome storage for offline access
@@ -891,6 +894,14 @@ Please open an issue or pull request on GitHub.
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+---
+
+## 🎨 What's New in v3.2.2?
+
+### Cluster Name Detection Fix
+
+v3.2.2 fixes a bug where the "Save Cluster" modal always showed **"console-openshift-console"** as the cluster name instead of the actual cluster name. The suggested name now correctly extracts the cluster identifier from the URL (e.g., `mycluster`, `hcp-cluster`).
 
 ---
 

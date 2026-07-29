@@ -1,5 +1,14 @@
 # Release Notes
 
+## v3.2.2 - Cluster Name Detection Fix
+
+**Bug Fix:**
+- 🐛 **Cluster Name Detection** - "Save Cluster" modal now correctly extracts the actual cluster name from OpenShift console URLs instead of always showing "console-openshift-console"
+  - Works with standard URLs (e.g., `apps.mycluster.example.com` → `mycluster`)
+  - Works with nested/HCP URLs (e.g., `apps.hcp-cluster.apps.basedomain.example.com` → `hcp-cluster`)
+
+---
+
 ## v3.2.1 - Kubeconfig Auto-Fetch & Management
 
 **New Features:**
