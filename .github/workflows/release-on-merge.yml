@@ -20,6 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main  # Checkout main after merge
+          fetch-depth: 0
 
       - name: Check if release PR
         id: check_release
