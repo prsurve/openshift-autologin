@@ -2,7 +2,7 @@
 
 chrome.runtime.onInstalled.addListener((details) => {
   // Set default settings on install
-  chrome.storage.local.get("settings", ({ settings }) => {
+  chrome.storage.local.get('settings', ({ settings }) => {
     if (!settings) {
       chrome.storage.local.set({
         settings: {
@@ -16,11 +16,11 @@ chrome.runtime.onInstalled.addListener((details) => {
   });
 
   // Run migration on update
-  if (details.reason === "update") {
+  if (details.reason === 'update') {
     migrateToV24();
   }
 
-  console.log("OpenShift Auto-Login installed.");
+  console.log('OpenShift Auto-Login installed.');
 });
 
 // ════════════════════════════════════════════════════════
@@ -28,15 +28,15 @@ chrome.runtime.onInstalled.addListener((details) => {
 // ════════════════════════════════════════════════════════
 
 function migrateToV24() {
-  console.log("[Migration] Starting v2.4.0 migration...");
+  console.log('[Migration] Starting v2.4.0 migration...');
 
-  chrome.storage.local.get("clusters", ({ clusters = [] }) => {
+  chrome.storage.local.get('clusters', ({ clusters = [] }) => {
     let migrated = false;
 
     const updatedClusters = clusters.map(cluster => {
       // Add type field if missing (default to openshift for backward compatibility)
       if (!cluster.type) {
-        cluster.type = "openshift";
+        cluster.type = 'openshift';
         migrated = true;
       }
       return cluster;
@@ -47,7 +47,7 @@ function migrateToV24() {
         console.log(`[Migration] ✅ Migrated ${updatedClusters.length} clusters to v2.4.0 schema (added type field)`);
       });
     } else {
-      console.log("[Migration] No migration needed - all clusters already have type field");
+      console.log('[Migration] No migration needed - all clusters already have type field');
     }
   });
 }
