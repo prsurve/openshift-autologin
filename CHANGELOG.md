@@ -1,5 +1,17 @@
 # Release Notes
 
+## v3.3.0 - Version Bumps & Tooling Upgrades
+
+**Bug Fix:**
+- 🐛 **Export Version Metadata** - Fixed stale hardcoded `version: '3.2.0'` in cluster export data; now reads dynamically from `chrome.runtime.getManifest().version`
+
+**Tooling:**
+- ⬆️ **ESLint 8 → 9** - Upgraded from deprecated ESLint 8.x to ESLint 9.x with flat config (`eslint.config.mjs`)
+- ⬆️ **ecmaVersion 2021 → 2024** - Updated JavaScript parser target to ES2024
+- 🗑️ Removed legacy `.eslintrc.json` in favor of new flat config format
+
+---
+
 ## v3.2.2 - Cluster Name Detection Fix
 
 **Bug Fix:**
