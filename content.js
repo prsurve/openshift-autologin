@@ -1679,4 +1679,8 @@
     checkAndShowSaveBanner(); // Check if we should show the save banner
   }, 2000);
 
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { DETECTORS, matchVSphereCluster };
+  }
+
 })();

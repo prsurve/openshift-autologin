@@ -40,6 +40,9 @@ Thumbs.db
 dist/
 build/
 
+# Test coverage
+coverage/
+
 # Node modules (if applicable)
 node_modules/
 

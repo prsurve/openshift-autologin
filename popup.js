@@ -5524,3 +5524,12 @@ function showImportStatus(type, message) {
   el.textContent = message;
   if (type === 'success') setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    formatRelativeTime, getGroupColor, detectRole, getLoginUrl,
+    normalizeURL, extractDomain, isLoginPage, isCertificateErrorPage,
+    escapeHtml, extractBaseDomain, groupClusters, getLoginTooltip,
+    parseJSON, parseYAML, parseEnv, isOpenShiftClusterURL,
+  };
+}
