@@ -578,7 +578,7 @@ function shareCluster(cluster) {
 
     // Create export data for single cluster
     const exportData = {
-      version: '3.2.0',
+      version: chrome.runtime.getManifest().version,
       timestamp: Date.now(),
       clusters: [{
         name: cluster.name,
@@ -1095,7 +1095,7 @@ function loadClusters() {
 
           // Create export data for this group
           const exportData = {
-            version: '3.2.0',
+            version: chrome.runtime.getManifest().version,
             timestamp: Date.now(),
             clusters: group.clusters.map(({ cluster }) => {
               const exported = {
@@ -2772,7 +2772,7 @@ if (generateShareLinkBtn) {
 
       // Create export data
       const exportData = {
-        version: '3.2.0',
+        version: chrome.runtime.getManifest().version,
         timestamp: Date.now(),
         clusters: toShare.map(c => {
           const exported = {
