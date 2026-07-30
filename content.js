@@ -1038,7 +1038,6 @@
   // ── Detect if this is a vSphere console page ──────────
   function isVSphereConsolePage() {
     const url = window.location.href;
-    const hostname = window.location.hostname;
     const title = document.title.toLowerCase();
 
     // Check for vSphere console patterns (not login page)

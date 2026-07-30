@@ -46,22 +46,6 @@ async function corsFetch(url, options = {}) {
 }
 
 // ── Safe Chrome API Wrappers ──────────────────────────
-function safeStorageGet(keys, callback) {
-  try {
-    chrome.storage.local.get(keys, (result) => {
-      if (chrome.runtime.lastError) {
-        console.error('[Storage Get Error]', chrome.runtime.lastError);
-        callback({});
-        return;
-      }
-      callback(result);
-    });
-  } catch (error) {
-    console.error('[Storage Get Exception]', error);
-    callback({});
-  }
-}
-
 function safeStorageSet(items, callback) {
   try {
     chrome.storage.local.set(items, () => {
@@ -75,22 +59,6 @@ function safeStorageSet(items, callback) {
   } catch (error) {
     console.error('[Storage Set Exception]', error);
     if (callback) callback(false);
-  }
-}
-
-function safeTabsCreate(options, callback) {
-  try {
-    chrome.tabs.create(options, (tab) => {
-      if (chrome.runtime.lastError || !tab) {
-        console.error('[Tabs Create Error]', chrome.runtime.lastError);
-        if (callback) callback(null);
-        return;
-      }
-      if (callback) callback(tab);
-    });
-  } catch (error) {
-    console.error('[Tabs Create Exception]', error);
-    if (callback) callback(null);
   }
 }
 
@@ -3216,7 +3184,6 @@ function filterClusters() {
 
         // Check for platform badge - look for .badge.vsphere or .badge.openshift
         const vsphereBadge = card.querySelector('.badge.vsphere');
-        const openshiftBadge = card.querySelector('.badge.openshift');
         const clusterType = vsphereBadge ? 'vsphere' : 'openshift';
 
         // Check search query match
@@ -3239,7 +3206,6 @@ function filterClusters() {
 
       // Check for platform badge - look for .badge.vsphere or .badge.openshift
       const vsphereBadge = item.querySelector('.badge.vsphere');
-      const openshiftBadge = item.querySelector('.badge.openshift');
       const clusterType = vsphereBadge ? 'vsphere' : 'openshift';
 
       const matchesQuery = name.includes(query) || url.includes(query);
@@ -5531,5 +5497,6 @@ if (typeof module !== 'undefined' && module.exports) {
     normalizeURL, extractDomain, isLoginPage, isCertificateErrorPage,
     escapeHtml, extractBaseDomain, groupClusters, getLoginTooltip,
     parseJSON, parseYAML, parseEnv, isOpenShiftClusterURL,
+    parseJenkinsConsoleOutput,
   };
 }
