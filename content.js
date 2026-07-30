@@ -1038,7 +1038,6 @@
   // ── Detect if this is a vSphere console page ──────────
   function isVSphereConsolePage() {
     const url = window.location.href;
-    const hostname = window.location.hostname;
     const title = document.title.toLowerCase();
 
     // Check for vSphere console patterns (not login page)
@@ -1678,5 +1677,9 @@
     checkAfterLogin(); // Check if we just logged in manually
     checkAndShowSaveBanner(); // Check if we should show the save banner
   }, 2000);
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { DETECTORS, matchVSphereCluster };
+  }
 
 })();
